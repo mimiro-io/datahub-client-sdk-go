@@ -73,7 +73,6 @@ func (client *HttpClient) makeStreamingRequest(method HTTP_VERB, token string, s
 	fullUrl := parsedURL.String()
 
 	req, err := http.NewRequest(string(method), fullUrl, bytes.NewBuffer(content))
-
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +83,6 @@ func (client *HttpClient) makeStreamingRequest(method HTTP_VERB, token string, s
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", client.userAgent)
-
 	if headers != nil {
 		for key, val := range headers {
 			req.Header.Set(key, val)
@@ -128,7 +126,6 @@ func (client *HttpClient) makeStreamingWriterRequest(method HTTP_VERB, token str
 
 	reader, writer := io.Pipe()
 	req, err := http.NewRequest(string(method), fullUrl, reader)
-
 	if err != nil {
 		return nil, err
 	}

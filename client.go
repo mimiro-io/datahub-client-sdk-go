@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	egdm "github.com/mimiro-io/entity-graph-data-model"
@@ -12,24 +17,6 @@ import (
 )
 
 // Dataset structure
-type Dataset struct {
-	Name     string
-	Metadata map[string]any
-}
-
-type Job struct {
-	id        string
-	title     string
-	tags      []string
-	paused    bool
-	source    string
-	sink      string
-	transform string
-	error     string
-	duration  string
-	lastRun   string
-	triggers  string
-}
 
 type Query struct {
 }
@@ -63,7 +50,7 @@ type AuthConfig struct {
 	ClientID     string
 	ClientSecret string
 	Audience     string
-	PrivateKey   []byte
+	PrivateKey   *rsa.PrivateKey
 }
 
 type Client struct {
@@ -111,9 +98,13 @@ func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, 
 	return c
 }
 
-func (c *Client) WithPublicKeyAuth(privateKey []byte) *Client {
+// WithPublicKeyAuth sets the authentication type to public key authentication
+// and sets the client id, audience and private key
+func (c *Client) WithPublicKeyAuth(clientID string, audience string, privateKey *rsa.PrivateKey) *Client {
 	c.AuthConfig = &AuthConfig{
 		AuthType:   AuthTypePublicKey,
+		ClientID:   clientID,
+		Audience:   audience,
 		PrivateKey: privateKey,
 	}
 	return c
@@ -128,11 +119,7 @@ func (c *Client) WithUserAuth(authorizer string, audience string) *Client {
 	return c
 }
 
-func (c *Client) GenerateKeyPair(location string) error {
-	return nil
-}
-
-func (c *Client) CheckToken() error {
+func (c *Client) checkToken() error {
 	if c.AuthToken == nil || !c.AuthToken.Valid() {
 		err := c.Authenticate()
 		if err != nil {
@@ -145,31 +132,31 @@ func (c *Client) CheckToken() error {
 }
 
 func (c *Client) Authenticate() error {
-	if c.IsTokenValid() {
+	if c.isTokenValid() {
 		return nil
 	}
 
 	// if no token, get one
 	if c.AuthConfig.AuthType == AuthTypeClientKeyAndSecret {
-		token, err := c.AuthenticateWithClientCredentials()
+		token, err := c.authenticateWithClientCredentials()
 		if err != nil {
 			return err
 		}
 		c.AuthToken = token
 	} else if c.AuthConfig.AuthType == AuthTypePublicKey {
-		token, err := c.AuthenticateWithCertificate()
+		token, err := c.authenticateWithCertificate()
 		if err != nil {
 			return err
 		}
 		c.AuthToken = token
 	} else if c.AuthConfig.AuthType == AuthTypeUser {
-		token, err := c.AuthenticateWithUserFlow()
+		token, err := c.authenticateWithUserFlow()
 		if err != nil {
 			return err
 		}
 		c.AuthToken = token
 	} else if c.AuthConfig.AuthType == AuthTypeBasic {
-		token, err := c.AuthenticateWithBasicAuth()
+		token, err := c.authenticateWithBasicAuth()
 		if err != nil {
 			return err
 		}
@@ -179,7 +166,7 @@ func (c *Client) Authenticate() error {
 	return nil
 }
 
-func (c *Client) AuthenticateWithBasicAuth() (*oauth2.Token, error) {
+func (c *Client) authenticateWithBasicAuth() (*oauth2.Token, error) {
 	clientCredentialsConfig := &clientcredentials.Config{
 		ClientID:     c.AuthConfig.ClientID,
 		ClientSecret: c.AuthConfig.ClientSecret,
@@ -189,15 +176,124 @@ func (c *Client) AuthenticateWithBasicAuth() (*oauth2.Token, error) {
 	return clientCredentialsConfig.Token(context.Background())
 }
 
-func (c *Client) AuthenticateWithUserFlow() (*oauth2.Token, error) {
+func (c *Client) authenticateWithUserFlow() (*oauth2.Token, error) {
 	return nil, nil
 }
 
-func (c *Client) AuthenticateWithCertificate() (*oauth2.Token, error) {
-	return nil, nil
+func (c *Client) GenerateKeypair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	private, public, err := generateRsaKeyPair()
+	if err != nil {
+		return nil, nil, err
+	}
+	return private, public, nil
 }
 
-func (c *Client) AuthenticateWithClientCredentials() (*oauth2.Token, error) {
+func (c *Client) LoadKeypair(location string) (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	var privateKey *rsa.PrivateKey
+	privateKeyFilename := location + string(os.PathSeparator) + "node_key"
+	_, err := os.Stat(privateKeyFilename)
+	if err != nil {
+		return nil, nil, err
+	} else {
+		// load it
+		privateKeyBytes, err := readFileContents(privateKeyFilename)
+		if err != nil {
+			return nil, nil, err
+		}
+		privateKey, err = parseRsaPrivateKeyFromPem(privateKeyBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+
+	}
+
+	var publicKey *rsa.PublicKey
+	publicKeyFilename := location + string(os.PathSeparator) + "node_key.pub"
+	_, err = os.Stat(publicKeyFilename)
+	if err != nil {
+		return nil, nil, err
+	} else {
+		// load it
+		publicKeyBytes, err := readFileContents(publicKeyFilename)
+		if err != nil {
+			return nil, nil, err
+		}
+		publicKey, err = parseRsaPublicKeyFromPem(publicKeyBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return privateKey, publicKey, nil
+}
+
+func readFileContents(filename string) ([]byte, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close() // Ensure file is closed after reading
+
+	// Read the contents
+	contents, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	return contents, nil
+}
+
+func (c *Client) SaveKeypair(location string, privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) error {
+	privateKeyPem, err := exportRsaPrivateKeyAsPem(privateKey)
+	if err != nil {
+		return err
+
+	}
+	publicKeyPem, err := exportRsaPublicKeyAsPem(publicKey)
+	if err != nil {
+		return err
+	}
+
+	// write keys to files
+	err = os.WriteFile(location+string(os.PathSeparator)+"node_key", privateKeyPem, 0600)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(location+string(os.PathSeparator)+"node_key.pub", publicKeyPem, 0600)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) authenticateWithCertificate() (*oauth2.Token, error) {
+	data := url.Values{}
+	data.Set("grant_type", "client_credentials")
+	data.Set("client_assertion_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+
+	pem, err := createJWTForTokenRequest(c.AuthConfig.ClientID, c.AuthConfig.Audience, c.AuthConfig.PrivateKey)
+	data.Set("client_assertion", pem)
+
+	reqUrl := c.AuthConfig.Authorizer + "/security/token"
+	res, err := http.PostForm(reqUrl, data)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(res.Body)
+	response := make(map[string]interface{})
+	err = decoder.Decode(&response)
+	if err != nil {
+		return nil, err
+	}
+	accessToken := response["access_token"].(string)
+
+	return &oauth2.Token{
+		AccessToken: accessToken,
+	}, nil
+}
+
+func (c *Client) authenticateWithClientCredentials() (*oauth2.Token, error) {
 	// check we have the required config
 	if c.AuthConfig.ClientID == "" {
 		return nil, errors.New("missing client id")
@@ -232,7 +328,7 @@ func (c *Client) AuthenticateWithClientCredentials() (*oauth2.Token, error) {
 	return cc.Token(ctx)
 }
 
-func (c *Client) IsTokenValid() bool {
+func (c *Client) isTokenValid() bool {
 	if c.AuthToken == nil {
 		return false
 	}
@@ -240,138 +336,6 @@ func (c *Client) IsTokenValid() bool {
 	return c.AuthToken.Valid()
 }
 
-func (c *Client) GetJob(job string) (*Job, error) {
-	return nil, nil
-}
-
-func (c *Client) OperateJob(job string) (*Job, error) {
-	return nil, nil
-}
-
-func (c *Client) ListJobs(filter *JobsFilter) []*Job {
-	return nil
-}
-
-func (c *Client) CreateJob(job string) *Job {
-	return nil
-}
-
 func (c *Client) RunQuery(query *Query) map[string]any {
 	return nil
-}
-
-// this is the set of features offered by the cli so makes a good candidate list for the sdk
-// also add this to the server directly
-// add with functions to JobFilters for the following
-// title=mystringhere
-// tags=mytag
-// id=myidstring
-// paused=true
-// source=dataset
-// sink=http
-// transform=javascript
-// error=my error message
-// duration>10s or duration<30ms
-// lastrun<2020-11-19T14:56:17+01:00 or lastrun>2020-11-19T14:56:17+01:00
-// triggers=@every 60 or triggers=fullsync or triggers=person.Crm
-
-func NewJobsFilter() *JobsFilter {
-	jf := &JobsFilter{}
-	jf.hasTags = make([]string, 0)
-	return jf
-}
-
-// JobsFilter structure used for filtering jobs when using the ListJobs function
-type JobsFilter struct {
-	isPaused               bool
-	hasTitle               string
-	hasTags                []string
-	hasId                  string
-	hasSource              string
-	hasSink                string
-	hasTransform           string
-	hasError               string
-	hasDurationGreaterThan string
-	hasDurationLessThan    string
-	hasLastRunAfter        string
-	hasLastRunBefore       string
-	hasTrigger             string
-}
-
-// HasTitle adds a title filter to the JobsFilter
-func (jf *JobsFilter) HasTitle(title string) *JobsFilter {
-	jf.hasTitle = title
-	return jf
-}
-
-// HasTags adds a tags filter to the JobsFilter
-func (jf *JobsFilter) HasTags(tags string) *JobsFilter {
-	jf.hasTags = append(jf.hasTags, tags)
-	return jf
-}
-
-// HasId adds an id filter to the JobsFilter
-func (jf *JobsFilter) HasId(id string) *JobsFilter {
-	jf.hasId = id
-	return jf
-}
-
-// IsPaused adds a paused filter to the JobsFilter
-func (jf *JobsFilter) IsPaused(paused bool) *JobsFilter {
-	jf.isPaused = paused
-	return jf
-}
-
-// HasSource adds a source filter to the JobsFilter
-func (jf *JobsFilter) HasSource(source string) *JobsFilter {
-	jf.hasSource = source
-	return jf
-}
-
-// HasSink adds a sink filter to the JobsFilter
-func (jf *JobsFilter) HasSink(sink string) *JobsFilter {
-	jf.hasSink = sink
-	return jf
-}
-
-// HasTransform adds a transform filter to the JobsFilter
-func (jf *JobsFilter) HasTransform(transform string) *JobsFilter {
-	jf.hasTransform = transform
-	return jf
-}
-
-// HasError adds an error filter to the JobsFilter
-func (jf *JobsFilter) HasError(err string) *JobsFilter {
-	jf.hasError = err
-	return jf
-}
-
-// HasDurationGreaterThan adds a duration filter to the JobsFilter
-func (jf *JobsFilter) HasDurationGreaterThan(duration string) *JobsFilter {
-	jf.hasDurationGreaterThan = duration
-	return jf
-}
-
-// HasDurationLessThan adds a duration filter to the JobsFilter
-func (jf *JobsFilter) HasDurationLessThan(duration string) *JobsFilter {
-	jf.hasDurationLessThan = duration
-	return jf
-}
-
-// HasLastRunAfter adds a last run after filter to the JobsFilter
-func (jf *JobsFilter) HasLastRunAfter(lastRun string) *JobsFilter {
-	jf.hasLastRunAfter = lastRun
-	return jf
-}
-
-// HasLastRunBefore adds a last run before filter to the JobsFilter
-func (jf *JobsFilter) HasLastRunBefore(lastRun string) *JobsFilter {
-	jf.hasLastRunBefore = lastRun
-	return jf
-}
-
-// HasTrigger adds a triggers filter to the JobsFilter
-func (jf *JobsFilter) HasTrigger(triggers string) *JobsFilter {
-	jf.hasTrigger = triggers
-	return jf
 }

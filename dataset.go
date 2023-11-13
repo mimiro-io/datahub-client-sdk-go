@@ -8,12 +8,26 @@ import (
 	"strconv"
 )
 
+type Dataset struct {
+	Name     string
+	Metadata map[string]any
+}
+type ProxyDatasetConfig struct {
+	RemoteUrl        string `json:"remoteUrl"`
+	AuthProviderName string `json:"authProviderName"`
+}
+
+type CreateDatasetConfig struct {
+	ProxyDatasetConfig *ProxyDatasetConfig `json:"ProxyDatasetConfig"`
+	PublicNamespaces   []string            `json:"publicNamespaces"`
+}
+
 func (c *Client) GetDataset(name string) (*Dataset, error) {
 	if name == "" {
 		return nil, errors.New("dataset name is required")
 	}
 
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +54,7 @@ func (c *Client) GetDatasetEntity(name string) (*egdm.Entity, error) {
 		return nil, errors.New("dataset name is required")
 	}
 
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +82,7 @@ func (c *Client) PutDatasetEntity(dataset string, datasetEntity *egdm.Entity) er
 		return errors.New("dataset entity is required")
 	}
 
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return err
 	}
@@ -83,15 +97,6 @@ func (c *Client) PutDatasetEntity(dataset string, datasetEntity *egdm.Entity) er
 	return err
 }
 
-type ProxyDatasetConfig struct {
-	RemoteUrl        string `json:"remoteUrl"`
-	AuthProviderName string `json:"authProviderName"`
-}
-type CreateDatasetConfig struct {
-	ProxyDatasetConfig *ProxyDatasetConfig `json:"ProxyDatasetConfig"`
-	PublicNamespaces   []string            `json:"publicNamespaces"`
-}
-
 // CreateDataset creates a dataset if it does not exist, or updates the namespaces if it does.
 // returns an error if the dataset could not be created or updated.
 func (c *Client) CreateDataset(name string, namespaces []string) error {
@@ -99,7 +104,7 @@ func (c *Client) CreateDataset(name string, namespaces []string) error {
 		return errors.New("dataset name is required")
 	}
 
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return err
 	}
@@ -122,10 +127,10 @@ func (c *Client) CreateDataset(name string, namespaces []string) error {
 	return err
 }
 
-// AssertProxyDataset creates a proxy dataset if it does not exist, or updates the namespaces, remoteDatasetURL and
+// CreateProxyDataset creates a proxy dataset if it does not exist, or updates the namespaces, remoteDatasetURL and
 // authProviderName if it does. returns an error if the dataset could not be created or updated.
-func (c *Client) AssertProxyDataset(name string, namespaces []string, remoteDatasetURL string, authProviderName string) error {
-	err := c.CheckToken()
+func (c *Client) CreateProxyDataset(name string, namespaces []string, remoteDatasetURL string, authProviderName string) error {
+	err := c.checkToken()
 	if err != nil {
 		return err
 	}
@@ -156,7 +161,7 @@ func (c *Client) DeleteDataset(dataset string) error {
 		return errors.New("dataset name is required")
 	}
 
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return err
 	}
@@ -168,7 +173,7 @@ func (c *Client) DeleteDataset(dataset string) error {
 }
 
 func (c *Client) GetChanges(dataset string, since string, take int, latestOnly bool, reverse bool, expandURIs bool) (*egdm.EntityCollection, error) {
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +216,7 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 }
 
 func (c *Client) GetEntities(dataset string, from string, take int, reverse bool, expandURIs bool) (*egdm.EntityCollection, error) {
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +255,7 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 }
 
 func (c *Client) GetDatasets() ([]*Dataset, error) {
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +275,7 @@ func (c *Client) GetDatasets() ([]*Dataset, error) {
 }
 
 func (c *Client) StoreEntities(dataset string, entityCollection *egdm.EntityCollection) error {
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return err
 	}
@@ -285,7 +290,7 @@ func (c *Client) StoreEntities(dataset string, entityCollection *egdm.EntityColl
 }
 
 func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
-	err := c.CheckToken()
+	err := c.checkToken()
 	if err != nil {
 		return err
 	}
