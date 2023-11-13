@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/url"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -12,8 +13,8 @@ import (
 
 // Dataset structure
 type Dataset struct {
-	name     string
-	metadata map[string]any
+	Name     string
+	Metadata map[string]any
 }
 
 type Job struct {
@@ -68,6 +69,7 @@ type AuthConfig struct {
 type Client struct {
 	AuthConfig *AuthConfig
 	AuthToken  *oauth2.Token
+	Server     string
 }
 
 func NewClient() *Client {
@@ -78,50 +80,141 @@ func NewClient() *Client {
 	return client
 }
 
-func (c *Client) WithBasicAuth(username string, password string) {
+func (c *Client) WithServer(server string) *Client {
+	c.Server = server
+	return c
+}
+
+func (c *Client) WithExistingToken(token *oauth2.Token) *Client {
+	c.AuthToken = token
+	return c
+}
+
+func (c *Client) WithAdminAuth(datahubEndpoint string, username string, password string) *Client {
 	c.AuthConfig = &AuthConfig{
 		AuthType:     AuthTypeBasic,
 		ClientID:     username,
 		ClientSecret: password,
+		Authorizer:   datahubEndpoint,
 	}
+	return c
 }
 
-func (c *Client) WithClientKeyAndSecretAuth(clientKey string, clientSecret string) {
+func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, clientKey string, clientSecret string) *Client {
 	c.AuthConfig = &AuthConfig{
 		AuthType:     AuthTypeClientKeyAndSecret,
 		ClientID:     clientKey,
 		ClientSecret: clientSecret,
+		Authorizer:   authorizer,
+		Audience:     audience,
 	}
+	return c
 }
 
-func (c *Client) WithPublicKeyAuth(privateKey []byte) {
+func (c *Client) WithPublicKeyAuth(privateKey []byte) *Client {
 	c.AuthConfig = &AuthConfig{
 		AuthType:   AuthTypePublicKey,
 		PrivateKey: privateKey,
 	}
+	return c
 }
 
-func (c *Client) WithUserAuth(authorizer string, audience string) {
+func (c *Client) WithUserAuth(authorizer string, audience string) *Client {
 	c.AuthConfig = &AuthConfig{
 		AuthType:   AuthTypeUser,
 		Audience:   audience,
 		Authorizer: authorizer,
 	}
+	return c
 }
 
 func (c *Client) GenerateKeyPair(location string) error {
 	return nil
 }
 
-func (c *Client) Authenticate() error {
-	// check if current token should be refreshed
-
-	// if no token, get one
+func (c *Client) CheckToken() error {
+	if c.AuthToken == nil || !c.AuthToken.Valid() {
+		err := c.Authenticate()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 
 	return nil
 }
 
-func (c *Client) DoClientCredentialsLogin() (*oauth2.Token, error) {
+func (c *Client) Authenticate() error {
+	if c.IsTokenValid() {
+		return nil
+	}
+
+	// if no token, get one
+	if c.AuthConfig.AuthType == AuthTypeClientKeyAndSecret {
+		token, err := c.AuthenticateWithClientCredentials()
+		if err != nil {
+			return err
+		}
+		c.AuthToken = token
+	} else if c.AuthConfig.AuthType == AuthTypePublicKey {
+		token, err := c.AuthenticateWithCertificate()
+		if err != nil {
+			return err
+		}
+		c.AuthToken = token
+	} else if c.AuthConfig.AuthType == AuthTypeUser {
+		token, err := c.AuthenticateWithUserFlow()
+		if err != nil {
+			return err
+		}
+		c.AuthToken = token
+	} else if c.AuthConfig.AuthType == AuthTypeBasic {
+		token, err := c.AuthenticateWithBasicAuth()
+		if err != nil {
+			return err
+		}
+		c.AuthToken = token
+	}
+
+	return nil
+}
+
+func (c *Client) AuthenticateWithBasicAuth() (*oauth2.Token, error) {
+	clientCredentialsConfig := &clientcredentials.Config{
+		ClientID:     c.AuthConfig.ClientID,
+		ClientSecret: c.AuthConfig.ClientSecret,
+		TokenURL:     c.AuthConfig.Authorizer + "/security/token",
+	}
+
+	return clientCredentialsConfig.Token(context.Background())
+}
+
+func (c *Client) AuthenticateWithUserFlow() (*oauth2.Token, error) {
+	return nil, nil
+}
+
+func (c *Client) AuthenticateWithCertificate() (*oauth2.Token, error) {
+	return nil, nil
+}
+
+func (c *Client) AuthenticateWithClientCredentials() (*oauth2.Token, error) {
+	// check we have the required config
+	if c.AuthConfig.ClientID == "" {
+		return nil, errors.New("missing client id")
+	}
+
+	if c.AuthConfig.ClientSecret == "" {
+		return nil, errors.New("missing client secret")
+	}
+
+	if c.AuthConfig.Authorizer == "" {
+		return nil, errors.New("missing authorizer url")
+	}
+
+	if c.AuthConfig.Audience == "" {
+		return nil, errors.New("missing audience identifer")
+	}
+
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), c.AuthConfig.Authorizer)
 	provider, err := oidc.NewProvider(ctx, c.AuthConfig.Authorizer)
 	if err != nil {
@@ -130,47 +223,21 @@ func (c *Client) DoClientCredentialsLogin() (*oauth2.Token, error) {
 
 	params := url.Values{"audience": []string{c.AuthConfig.Audience}}
 	cc := &clientcredentials.Config{
-		ClientID:       c.AuthConfig.ClientKey,
+		ClientID:       c.AuthConfig.ClientID,
 		ClientSecret:   c.AuthConfig.ClientSecret,
 		TokenURL:       provider.Endpoint().TokenURL,
 		EndpointParams: params,
 	}
-	cfg.ClientCredentialsConfig = cc
 
 	return cc.Token(ctx)
-	return nil
 }
 
-func (c *Client) IsJWTValid() (bool, error) {
+func (c *Client) IsTokenValid() bool {
 	if c.AuthToken == nil {
-		return false, nil
+		return false
 	}
 
-	return false, nil
-}
-
-func (c *Client) GetDataset(dataset string) (*Dataset, error) {
-	return nil, nil
-}
-
-func (c *Client) CreateDataset(dataset string) (*Dataset, error) {
-	return nil, nil
-}
-
-func (c *Client) DeleteDataset(dataset string) (*Dataset, error) {
-	return nil, nil
-}
-
-func (c *Client) GetChanges(dataset string, since string, take int, latestOnly bool) (EntityIterator, error) {
-	return nil, nil
-}
-
-func (c *Client) GetEntities(dataset string, since string, take int) (EntityIterator, error) {
-	return nil, nil
-}
-
-func (c *Client) ListDatasets() ([]*Dataset, error) {
-	return nil, nil
+	return c.AuthToken.Valid()
 }
 
 func (c *Client) GetJob(job string) (*Job, error) {
