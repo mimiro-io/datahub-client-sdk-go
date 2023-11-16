@@ -226,7 +226,7 @@ func (c *Client) DeleteDataset(dataset string) error {
 
 	err := c.checkToken()
 	if err != nil {
-		return &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+		return &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	client := c.makeHttpClient()
@@ -257,7 +257,7 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 
 	err := c.checkToken()
 	if err != nil {
-		return nil, &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	params := map[string]string{}
@@ -310,7 +310,7 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 func (c *Client) GetEntities(dataset string, from string, take int, reverse bool, expandURIs bool) (*egdm.EntityCollection, error) {
 	err := c.checkToken()
 	if err != nil {
-		return nil, &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	params := map[string]string{}
@@ -354,7 +354,7 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 func (c *Client) GetDatasets() ([]*Dataset, error) {
 	err := c.checkToken()
 	if err != nil {
-		return nil, &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	client := c.makeHttpClient()
@@ -389,7 +389,7 @@ func (c *Client) StoreEntities(dataset string, entityCollection *egdm.EntityColl
 
 	err := c.checkToken()
 	if err != nil {
-		return &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+		return &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	client := c.makeHttpClient()
@@ -419,7 +419,7 @@ func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
 
 	err := c.checkToken()
 	if err != nil {
-		return &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+		return &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	writerFunc := func(writer io.Writer) error {
