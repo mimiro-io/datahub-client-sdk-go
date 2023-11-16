@@ -1,4 +1,4 @@
-package main
+package datahubclient
 
 type Job struct {
 	id        string

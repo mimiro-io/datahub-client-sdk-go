@@ -1,4 +1,4 @@
-package main
+package datahubclient
 
 import (
 	"bytes"
@@ -10,33 +10,37 @@ import (
 	"time"
 )
 
-func NewHttpClient() *HttpClient {
-	client := &HttpClient{}
+func newHttpClient(server string, accessToken string) *httpClient {
+	client := &httpClient{}
+	client.server = server
+	client.accessToken = accessToken
 	client.timeout = 30 * time.Second
 	return client
 }
 
-func (client *HttpClient) WithUserAgent(userAgent string) *HttpClient {
+func (client *httpClient) withUserAgent(userAgent string) *httpClient {
 	client.userAgent = userAgent
 	return client
 }
 
-type HttpClient struct {
-	userAgent string
-	timeout   time.Duration
+type httpClient struct {
+	userAgent   string
+	server      string
+	accessToken string
+	timeout     time.Duration
 }
 
-type HTTP_VERB string
+type httpVerb string
 
 const (
-	HTTP_GET    HTTP_VERB = "GET"
-	HTTP_POST   HTTP_VERB = "POST"
-	HTTP_PUT    HTTP_VERB = "PUT"
-	HTTP_DELETE HTTP_VERB = "DELETE"
+	httpGet    httpVerb = "GET"
+	httpPost   httpVerb = "POST"
+	httpPut    httpVerb = "PUT"
+	httpDelete httpVerb = "DELETE"
 )
 
-func (client *HttpClient) makeRequest(method HTTP_VERB, token string, server string, path string, content []byte, headers map[string]string, queryParams map[string]string) ([]byte, error) {
-	resp, err := client.makeStreamingRequest(method, token, server, path, content, headers, queryParams)
+func (client *httpClient) makeRequest(method httpVerb, path string, content []byte, headers map[string]string, queryParams map[string]string) ([]byte, error) {
+	resp, err := client.makeStreamingRequest(method, path, content, headers, queryParams)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +57,8 @@ func (client *HttpClient) makeRequest(method HTTP_VERB, token string, server str
 	return bodyBytes, nil
 }
 
-func (client *HttpClient) makeStreamingRequest(method HTTP_VERB, token string, server string, path string, content []byte, headers map[string]string, queryParams map[string]string) (io.ReadCloser, error) {
-	baseURL := fmt.Sprintf("%s%s", server, path)
+func (client *httpClient) makeStreamingRequest(method httpVerb, path string, content []byte, headers map[string]string, queryParams map[string]string) (io.ReadCloser, error) {
+	baseURL := fmt.Sprintf("%s%s", client.server, path)
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
@@ -77,8 +81,8 @@ func (client *HttpClient) makeStreamingRequest(method HTTP_VERB, token string, s
 		return nil, err
 	}
 
-	if token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	if client.accessToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -105,8 +109,8 @@ func (client *HttpClient) makeStreamingRequest(method HTTP_VERB, token string, s
 	}
 }
 
-func (client *HttpClient) makeStreamingWriterRequest(method HTTP_VERB, token string, server string, path string, writeBody func(writer io.Writer) error, headers map[string]string, queryParams map[string]string) (io.ReadCloser, error) {
-	baseURL := fmt.Sprintf("%s%s", server, path)
+func (client *httpClient) makeStreamingWriterRequest(method httpVerb, path string, writeBody func(writer io.Writer) error, headers map[string]string, queryParams map[string]string) (io.ReadCloser, error) {
+	baseURL := fmt.Sprintf("%s%s", client.server, path)
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
@@ -130,8 +134,8 @@ func (client *HttpClient) makeStreamingWriterRequest(method HTTP_VERB, token str
 		return nil, err
 	}
 
-	if token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	if client.accessToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
 	}
 
 	req.Header.Set("Content-Type", "application/json")

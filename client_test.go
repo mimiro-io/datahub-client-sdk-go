@@ -1,4 +1,4 @@
-package main
+package datahubclient
 
 import (
 	"os"
@@ -42,8 +42,9 @@ func TestClientCredentialsAuthenticate(t *testing.T) {
 	}
 
 	// test connect
-	client := NewClient().WithClientKeyAndSecretAuth(testConfig.AuthorizerUrl, testConfig.Audience, testConfig.ClientCredentialsKey, testConfig.ClientCredentialsSecret)
-	err := client.Authenticate()
+	client, err := NewClient("http://localhost:8080")
+	client.WithClientKeyAndSecretAuth(testConfig.AuthorizerUrl, testConfig.Audience, testConfig.ClientCredentialsKey, testConfig.ClientCredentialsSecret)
+	err = client.Authenticate()
 	if err != nil {
 		t.Error(err)
 	}
@@ -59,8 +60,9 @@ func TestAdminAuthenticate(t *testing.T) {
 	}
 
 	// test connect
-	client := NewClient().WithAdminAuth(testConfig.DataHubUrl, testConfig.AdminUser, testConfig.AdminKey)
-	err := client.Authenticate()
+	client, err := NewClient(testConfig.DataHubUrl)
+	client.WithAdminAuth(testConfig.AdminUser, testConfig.AdminKey)
+	err = client.Authenticate()
 	if err != nil {
 		t.Error(err)
 	}

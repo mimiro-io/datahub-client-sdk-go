@@ -1,4 +1,4 @@
-package main
+package datahubclient
 
 import (
 	"github.com/google/uuid"
@@ -9,7 +9,8 @@ import (
 
 func NewAdminUserConfiguredClient() *Client {
 	testConfig := getTestConfig()
-	client := NewClient().WithServer(testConfig.DataHubUrl).WithAdminAuth(testConfig.DataHubUrl, testConfig.AdminUser, testConfig.AdminKey)
+	client, _ := NewClient(testConfig.DataHubUrl)
+	client.WithAdminAuth(testConfig.AdminUser, testConfig.AdminKey)
 	return client
 }
 
@@ -166,7 +167,7 @@ func TestGetChanges(t *testing.T) {
 		t.Errorf("expected 0 entities, got %d", len(changes.Entities))
 	}
 
-	// add some more entities and try get changes again
+	// add some more entities and try and get changes again
 	prefixedId, err = namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity2")
 	ec = egdm.NewEntityCollection(namespaceManager)
 	entity = egdm.NewEntity().SetID(prefixedId)
@@ -224,7 +225,7 @@ func TestChangesWithLatestOnly(t *testing.T) {
 		t.Errorf("expected 1 entity, got %d", len(changes.Entities))
 	}
 
-	// add some more entities and try get changes again
+	// add some more entities and try and get changes again
 	prefixedId, err = namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity2")
 	ec = egdm.NewEntityCollection(namespaceManager)
 	entity = egdm.NewEntity().SetID(prefixedId)
