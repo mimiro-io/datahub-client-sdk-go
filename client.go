@@ -1,5 +1,5 @@
-// Package datahubclient provides a sdk for interacting with MIMIRO data hub instances.
-package datahubclient
+// package datahub provides a sdk for interacting with MIMIRO data hub instances.
+package datahub
 
 import (
 	"context"

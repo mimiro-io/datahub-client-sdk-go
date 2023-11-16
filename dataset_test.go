@@ -1,4 +1,4 @@
-package datahubclient
+package datahub
 
 import (
 	"github.com/google/uuid"
