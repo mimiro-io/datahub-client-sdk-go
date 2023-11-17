@@ -395,7 +395,7 @@ func (c *Client) StoreEntities(dataset string, entityCollection *egdm.EntityColl
 	client := c.makeHttpClient()
 	reader, err := client.makeStreamingWriterRequest(httpPost, "/datasets/"+dataset+"/entities", entityCollection.WriteEntityGraphJSON, nil, nil)
 	if err != nil {
-		return err
+		return &RequestError{Msg: "unable to store entities", Err: err}
 	}
 
 	return reader.Close()

@@ -1,6 +1,7 @@
 package datahub
 
 import (
+	"github.com/google/uuid"
 	"os"
 	"testing"
 )
@@ -68,5 +69,40 @@ func TestAdminAuthenticate(t *testing.T) {
 	}
 	if client.AuthToken.AccessToken == "" {
 		t.Error("expected token to be populated")
+	}
+}
+
+func TestClientCertificateAuthenticate(t *testing.T) {
+	testConfig := getTestConfig()
+	if testConfig.DataHubUrl == "" {
+		t.Skip("skipping test; no credentials provided")
+	}
+
+	client, err := NewClient(testConfig.DataHubUrl)
+	client.WithAdminAuth(testConfig.AdminUser, testConfig.AdminKey)
+	err = client.Authenticate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// use client to store a certificate
+	privateKey, publicKey, err := client.GenerateKeypair()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// generate client id from uuid
+	clientId := "test-" + uuid.New().String()
+	err = client.AddClient(clientId, publicKey)
+	if err != nil {
+		t.Error(err)
+	}
+
+	publicKeyClient, err := NewClient(testConfig.DataHubUrl)
+	publicKeyClient.WithPublicKeyAuth(clientId, privateKey)
+
+	err = publicKeyClient.Authenticate()
+	if err != nil {
+		t.Error(err)
 	}
 }

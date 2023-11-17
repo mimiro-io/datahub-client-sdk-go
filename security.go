@@ -3,6 +3,7 @@ package datahub
 import (
 	"crypto/rsa"
 	"encoding/json"
+	"net/url"
 )
 
 // AccessControl is a struct that represents a single access control rule for a single resource
@@ -38,7 +39,7 @@ func (c *Client) GetClients() (map[string]ClientInfo, error) {
 	client := c.makeHttpClient()
 	data, err := client.makeRequest(httpGet, "/security/clients", nil, nil, nil)
 	if err != nil {
-		return nil, &RequestError{Msg: "unable to get clients"}
+		return nil, &RequestError{Msg: "unable to get clients", Err: err}
 	}
 
 	clients := make(map[string]ClientInfo)
@@ -69,24 +70,24 @@ func (c *Client) AddClient(clientID string, publicKey *rsa.PublicKey) error {
 
 	clientInfo := &ClientInfo{}
 	clientInfo.ClientId = clientID
-	if publicKey == nil {
+	if publicKey != nil {
 		publicKeyBytes, err := exportRsaPublicKeyAsPem(publicKey)
 		if err != nil {
-			return err
+			return &ParameterError{Msg: "unable to export public key", Err: err}
 		}
 		clientInfo.PublicKey = publicKeyBytes
 	}
 
 	jsonData, err := json.Marshal(clientInfo)
 	if err != nil {
-		return &ParameterError{Msg: "unable to marshal client info"}
+		return &ParameterError{Msg: "unable to marshal client info", Err: err}
 	}
 
 	client := c.makeHttpClient()
 	_, err = client.makeRequest(httpPost, "/security/clients", jsonData, nil, nil)
 
 	if err != nil {
-		return &RequestError{Msg: "unable to add client"}
+		return &RequestError{Msg: "unable to add client", Err: err}
 	}
 
 	return nil
@@ -108,14 +109,14 @@ func (c *Client) DeleteClient(id string) error {
 	clientInfo.Deleted = true
 	jsonData, err := json.Marshal(clientInfo)
 	if err != nil {
-		return &ParameterError{Msg: "unable to marshal client info"}
+		return &ParameterError{Msg: "unable to marshal client info", Err: err}
 	}
 
 	client := c.makeHttpClient()
 	_, err = client.makeRequest(httpPost, "/security/clients", jsonData, nil, nil)
 
 	if err != nil {
-		return &RequestError{Msg: "unable to delete client"}
+		return &RequestError{Msg: "unable to delete client", Err: err}
 	}
 
 	return nil
@@ -135,14 +136,14 @@ func (c *Client) SetClientAcl(clientID string, acls []AccessControl) error {
 
 	jsonData, err := json.Marshal(acls)
 	if err != nil {
-		return &ParameterError{Msg: "unable to marshal access control list"}
+		return &ParameterError{Msg: "unable to marshal access control list", Err: err}
 	}
 
 	client := c.makeHttpClient()
 	_, err = client.makeRequest(httpPost, "/security/clients/"+clientID+"/acl", jsonData, nil, nil)
 
 	if err != nil {
-		return &RequestError{Msg: "unable to set client access control list"}
+		return &RequestError{Msg: "unable to set client access control list", Err: err}
 	}
 
 	return nil
@@ -168,13 +169,13 @@ func (c *Client) GetClientAcl(clientID string) ([]AccessControl, error) {
 	client := c.makeHttpClient()
 	data, err := client.makeRequest(httpGet, "/security/clients/"+clientID+"/acl", nil, nil, nil)
 	if err != nil {
-		return nil, &RequestError{Msg: "unable to get client access control list"}
+		return nil, &RequestError{Msg: "unable to get client access control list", Err: err}
 	}
 
 	acls := make([]AccessControl, 0)
 	err = json.Unmarshal(data, &acls)
 	if err != nil {
-		return nil, err
+		return nil, &ClientProcessingError{Msg: "unable to process client access control list", Err: err}
 	}
 
 	return acls, nil
@@ -188,7 +189,6 @@ type ProviderConfig struct {
 	ClientId     *ValueReader `json:"key,omitempty"`
 	ClientSecret *ValueReader `json:"secret,omitempty"`
 	Audience     *ValueReader `json:"audience,omitempty"`
-	GrantType    *ValueReader `json:"grantType,omitempty"`
 	Endpoint     *ValueReader `json:"endpoint,omitempty"`
 }
 
@@ -214,7 +214,7 @@ func (c *Client) AddTokenProvider(tokenProviderConfig *ProviderConfig) error {
 
 	jsonData, err := json.Marshal(tokenProviderConfig)
 	if err != nil {
-		return &ParameterError{Msg: "unable to marshal token provider config"}
+		return &ParameterError{Msg: "unable to marshal token provider config", Err: err}
 
 	}
 
@@ -222,7 +222,94 @@ func (c *Client) AddTokenProvider(tokenProviderConfig *ProviderConfig) error {
 	_, err = client.makeRequest(httpPost, "/provider/logins", jsonData, nil, nil)
 
 	if err != nil {
-		return &RequestError{Msg: "unable to add token provider"}
+		return &RequestError{Msg: "unable to add token provider", Err: err}
+	}
+
+	return nil
+}
+
+// DeleteTokenProvider deletes the specified token provider.
+// name is the name of the token provider to be deleted.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the name is empty
+// returns a RequestError if the request fails.
+func (c *Client) DeleteTokenProvider(name string) error {
+	err := c.checkToken()
+	if err != nil {
+		return &AuthenticationError{Err: err, Msg: "unable to authenticate"}
+	}
+
+	client := c.makeHttpClient()
+	escapedName := url.QueryEscape(name)
+	_, err = client.makeRequest(httpDelete, "/provider/login/"+escapedName, nil, nil, nil)
+
+	if err != nil {
+		return &RequestError{Msg: "unable to delete token provider", Err: err}
+	}
+
+	return nil
+}
+
+// GetTokenProvider returns the specified token provider.
+// name is the name of the token provider to be returned.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the name is empty
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) GetTokenProvider(name string) (*ProviderConfig, error) {
+	err := c.checkToken()
+	if err != nil {
+		return nil, &AuthenticationError{Err: err, Msg: "unable to authenticate"}
+	}
+
+	client := c.makeHttpClient()
+	escapedName := url.QueryEscape(name)
+	data, err := client.makeRequest(httpGet, "/provider/login/"+escapedName, nil, nil, nil)
+
+	if err != nil {
+		return nil, &RequestError{Msg: "unable to get token provider", Err: err}
+	}
+
+	provider := &ProviderConfig{}
+	err = json.Unmarshal(data, &provider)
+	if err != nil {
+		return nil, &ClientProcessingError{Msg: "unable to process token provider", Err: err}
+	}
+
+	return provider, nil
+}
+
+// SetTokenProvider sets the specified token provider.
+// name is the name of the token provider to be set.
+// tokenProviderConfig is the token provider configuration to be set.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the name is empty or the tokenProviderConfig is nil
+// returns a RequestError if the request fails.
+func (c *Client) SetTokenProvider(name string, tokenProviderConfig *ProviderConfig) error {
+	if name == "" {
+		return &ParameterError{Msg: "name cannot be empty"}
+	}
+
+	if tokenProviderConfig == nil {
+		return &ParameterError{Msg: "tokenProviderConfig cannot be nil"}
+	}
+
+	err := c.checkToken()
+	if err != nil {
+		return &AuthenticationError{Err: err, Msg: "unable to authenticate"}
+	}
+
+	jsonData, err := json.Marshal(tokenProviderConfig)
+	if err != nil {
+		return &ParameterError{Msg: "unable to marshal token provider config", Err: err}
+
+	}
+
+	client := c.makeHttpClient()
+	_, err = client.makeRequest(httpPut, "/provider/logins/"+name, jsonData, nil, nil)
+
+	if err != nil {
+		return &RequestError{Msg: "unable to set token provider", Err: err}
 	}
 
 	return nil
@@ -242,13 +329,13 @@ func (c *Client) GetTokenProviders() ([]*ProviderConfig, error) {
 	client := c.makeHttpClient()
 	data, err := client.makeRequest(httpGet, "/provider/logins", nil, nil, nil)
 	if err != nil {
-		return nil, &RequestError{Msg: "unable to get token providers"}
+		return nil, &RequestError{Msg: "unable to get token providers", Err: err}
 	}
 
 	providers := make([]*ProviderConfig, 0)
 	err = json.Unmarshal(data, &providers)
 	if err != nil {
-		return nil, &ClientProcessingError{Msg: "unable to process token providers"}
+		return nil, &ClientProcessingError{Msg: "unable to process token providers", Err: err}
 	}
 
 	return providers, nil

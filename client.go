@@ -61,16 +61,6 @@ type Client struct {
 	Server     string
 }
 
-func (c *Client) makeHttpClient() *httpClient {
-	accessToken := ""
-	if c.AuthToken != nil {
-		accessToken = c.AuthToken.AccessToken
-	}
-
-	client := newHttpClient(c.Server, accessToken)
-	return client
-}
-
 // NewClient creates a new client instance.
 // Specify the data hub server url as the parameter.
 // Use the withXXX functions to configure options
@@ -89,6 +79,18 @@ func NewClient(server string) (*Client, error) {
 		AuthType: AuthTypeNone,
 	}
 	return client, nil
+}
+
+// makeHttpClient creates a new http client with the specified access token
+// and server configured
+func (c *Client) makeHttpClient() *httpClient {
+	accessToken := ""
+	if c.AuthToken != nil {
+		accessToken = c.AuthToken.AccessToken
+	}
+
+	client := newHttpClient(c.Server, accessToken)
+	return client
 }
 
 // WithExistingToken sets the authentication token to use.
@@ -128,11 +130,11 @@ func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, 
 
 // WithPublicKeyAuth sets the authentication type to public key authentication.
 // Sets the client id, audience and private key
-func (c *Client) WithPublicKeyAuth(clientID string, audience string, privateKey *rsa.PrivateKey) *Client {
+func (c *Client) WithPublicKeyAuth(clientID string, privateKey *rsa.PrivateKey) *Client {
 	c.AuthConfig = &authConfig{
 		AuthType:   AuthTypePublicKey,
 		ClientID:   clientID,
-		Audience:   audience,
+		Audience:   "datahub-client-sdk",
 		PrivateKey: privateKey,
 		Authorizer: c.Server,
 	}
