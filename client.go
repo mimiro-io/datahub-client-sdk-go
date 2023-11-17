@@ -129,7 +129,7 @@ func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, 
 }
 
 // WithPublicKeyAuth sets the authentication type to public key authentication.
-// Sets the client id, audience and private key
+// Sets the client id and private key
 func (c *Client) WithPublicKeyAuth(clientID string, privateKey *rsa.PrivateKey) *Client {
 	c.AuthConfig = &authConfig{
 		AuthType:   AuthTypePublicKey,
