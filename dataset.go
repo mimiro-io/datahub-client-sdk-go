@@ -128,12 +128,12 @@ func (c *Client) UpdateDatasetEntity(dataset string, datasetEntity *egdm.Entity)
 	return err
 }
 
-// CreateDataset creates a dataset if it does not exist.
+// AddDataset creates a dataset if it does not exist.
 // returns an AuthenticationError if the client is unable to authenticate.
 // returns a ParameterError if the dataset name is empty.
 // returns a RequestError if the request fails.
 // returns a ClientProcessingError if the response cannot be processed.
-func (c *Client) CreateDataset(name string, namespaces []string) error {
+func (c *Client) AddDataset(name string, namespaces []string) error {
 	if name == "" {
 		return &ParameterError{Msg: "dataset name is required"}
 	}
@@ -169,13 +169,13 @@ func (c *Client) CreateDataset(name string, namespaces []string) error {
 	return nil
 }
 
-// CreateProxyDataset creates a proxy dataset if it does not exist, or updates the namespaces, remoteDatasetURL and
+// AddProxyDataset creates a proxy dataset if it does not exist, or updates the namespaces, remoteDatasetURL and
 // authProviderName if it does. returns an error if the dataset could not be created or updated.
 // returns an AuthenticationError if the client is unable to authenticate.
 // returns a ParameterError if the dataset name is empty.
 // returns a RequestError if the request fails.
 // returns a ClientProcessingError if the response cannot be processed.
-func (c *Client) CreateProxyDataset(name string, namespaces []string, remoteDatasetURL string, authProviderName string) error {
+func (c *Client) AddProxyDataset(name string, namespaces []string, remoteDatasetURL string, authProviderName string) error {
 	var err error
 
 	if name == "" {

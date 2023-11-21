@@ -64,7 +64,7 @@ func TestAssertDataset(t *testing.T) {
 	// make dateset name from test+ a guid
 	datasetName := "test-" + uuid.New().String()
 
-	err := client.CreateDataset(datasetName, nil)
+	err := client.AddDataset(datasetName, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -86,7 +86,7 @@ func TestStoreEntities(t *testing.T) {
 	// make dateset name from test+ a guid
 	datasetName := "test-" + uuid.New().String()
 
-	err := client.CreateDataset(datasetName, nil)
+	err := client.AddDataset(datasetName, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -129,7 +129,7 @@ func TestGetChanges(t *testing.T) {
 	// make dateset name from test+ a guid
 	datasetName := "test-" + uuid.New().String()
 
-	err := client.CreateDataset(datasetName, nil)
+	err := client.AddDataset(datasetName, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -197,7 +197,7 @@ func TestChangesWithLatestOnly(t *testing.T) {
 	// make dateset name from test+ a guid
 	datasetName := "test-" + uuid.New().String()
 
-	err := client.CreateDataset(datasetName, nil)
+	err := client.AddDataset(datasetName, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -266,7 +266,7 @@ func TestGetChangesUsingTake(t *testing.T) {
 	// make dateset name from test+ a guid
 	datasetName := "test-" + uuid.New().String()
 
-	err := client.CreateDataset(datasetName, nil)
+	err := client.AddDataset(datasetName, nil)
 	if err != nil {
 		t.Error(err)
 	}

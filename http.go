@@ -105,7 +105,8 @@ func (client *httpClient) makeStreamingRequest(method httpVerb, path string, con
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		return resp.Body, nil
 	} else {
-		return nil, errors.New("error in request http status " + resp.Status)
+		msg, _ := io.ReadAll(resp.Body)
+		return nil, errors.New("error in request http status " + resp.Status + " : " + string(msg))
 	}
 }
 
