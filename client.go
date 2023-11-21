@@ -1,10 +1,12 @@
-package main
+// package datahub provides a sdk for interacting with MIMIRO data hub instances.
+package datahub
 
 import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,8 +17,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
-
-// Dataset structure
 
 type Query struct {
 }
@@ -32,19 +32,20 @@ type EntityIterator interface {
 type AuthType int
 
 const (
-	// used for connecting to unsercured datahub instances
+	// AuthTypeNone used for connecting to unsercured datahub instances
 	AuthTypeNone AuthType = iota
-	// used for connecting as admin user with username and password
+	// AuthTypeBasic used for connecting as admin user with username and password
 	AuthTypeBasic
-	// used for OAuth flow with client key and secret
+	// AuthTypeClientKeyAndSecret used for OAuth flow with client key and secret
 	AuthTypeClientKeyAndSecret
-	// Used for OAuth flow with signed JWT authentication request
+	// AuthTypePublicKey Used for OAuth flow with signed JWT authentication request
 	AuthTypePublicKey
-	// AuthType User uses the OAuth User flow
+	// AuthTypeUser Used the OAuth User flow - Not yet supported
 	AuthTypeUser
 )
 
-type AuthConfig struct {
+// authConfig contains the configuration for the different authentication types
+type authConfig struct {
 	AuthType     AuthType
 	Authorizer   string
 	ClientID     string
@@ -53,42 +54,71 @@ type AuthConfig struct {
 	PrivateKey   *rsa.PrivateKey
 }
 
+// Client is the main entry point for the data hub client sdk
 type Client struct {
-	AuthConfig *AuthConfig
+	AuthConfig *authConfig
 	AuthToken  *oauth2.Token
 	Server     string
 }
 
-func NewClient() *Client {
+// NewClient creates a new client instance.
+// Specify the data hub server url as the parameter.
+// Use the withXXX functions to configure options
+// returns a ParameterError if the server url is empty or invalid URL
+func NewClient(server string) (*Client, error) {
+	if server == "" {
+		return nil, &ParameterError{Err: nil, Msg: "server url is required"}
+	}
+	_, err := url.Parse(server)
+	if err != nil {
+		return nil, &ParameterError{Err: err, Msg: "server url is not valid"}
+	}
 	client := &Client{}
-	client.AuthConfig = &AuthConfig{
+	client.Server = server
+	client.AuthConfig = &authConfig{
 		AuthType: AuthTypeNone,
 	}
+	return client, nil
+}
+
+// makeHttpClient creates a new http client with the specified access token
+// and server configured
+func (c *Client) makeHttpClient() *httpClient {
+	accessToken := ""
+	if c.AuthToken != nil {
+		accessToken = c.AuthToken.AccessToken
+	}
+
+	client := newHttpClient(c.Server, accessToken)
 	return client
 }
 
-func (c *Client) WithServer(server string) *Client {
-	c.Server = server
-	return c
-}
-
+// WithExistingToken sets the authentication token to use.
+// This is useful if you have a reconstituted a stored token from a previous session
 func (c *Client) WithExistingToken(token *oauth2.Token) *Client {
 	c.AuthToken = token
 	return c
 }
 
-func (c *Client) WithAdminAuth(datahubEndpoint string, username string, password string) *Client {
-	c.AuthConfig = &AuthConfig{
+// WithAdminAuth sets the authentication type to basic authentication.
+// username and password are the credentials of the admin user
+func (c *Client) WithAdminAuth(username string, password string) *Client {
+	c.AuthConfig = &authConfig{
 		AuthType:     AuthTypeBasic,
 		ClientID:     username,
 		ClientSecret: password,
-		Authorizer:   datahubEndpoint,
+		Authorizer:   c.Server,
 	}
 	return c
 }
 
+// WithClientKeyAndSecretAuth sets the authentication type to client key and secret OAuth2 authentication flow
+// authorizer is the url of the authorizer service
+// audience is the audience identifier
+// clientKey is the client key
+// clientSecret is the client secret
 func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, clientKey string, clientSecret string) *Client {
-	c.AuthConfig = &AuthConfig{
+	c.AuthConfig = &authConfig{
 		AuthType:     AuthTypeClientKeyAndSecret,
 		ClientID:     clientKey,
 		ClientSecret: clientSecret,
@@ -98,20 +128,24 @@ func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, 
 	return c
 }
 
-// WithPublicKeyAuth sets the authentication type to public key authentication
-// and sets the client id, audience and private key
-func (c *Client) WithPublicKeyAuth(clientID string, audience string, privateKey *rsa.PrivateKey) *Client {
-	c.AuthConfig = &AuthConfig{
+// WithPublicKeyAuth sets the authentication type to public key authentication.
+// Sets the client id and private key
+func (c *Client) WithPublicKeyAuth(clientID string, privateKey *rsa.PrivateKey) *Client {
+	c.AuthConfig = &authConfig{
 		AuthType:   AuthTypePublicKey,
 		ClientID:   clientID,
-		Audience:   audience,
+		Audience:   "datahub-client-sdk",
 		PrivateKey: privateKey,
+		Authorizer: c.Server,
 	}
 	return c
 }
 
+// WithUserAuth sets the authentication type to user authentication
+// and sets the authorizer url and audience
+// NOT SUPPORTED YET
 func (c *Client) WithUserAuth(authorizer string, audience string) *Client {
-	c.AuthConfig = &AuthConfig{
+	c.AuthConfig = &authConfig{
 		AuthType:   AuthTypeUser,
 		Audience:   audience,
 		Authorizer: authorizer,
@@ -119,6 +153,7 @@ func (c *Client) WithUserAuth(authorizer string, audience string) *Client {
 	return c
 }
 
+// checkToken checks if the current token is valid and if not, attempts to authenticate
 func (c *Client) checkToken() error {
 	if c.AuthToken == nil || !c.AuthToken.Valid() {
 		err := c.Authenticate()
@@ -131,34 +166,35 @@ func (c *Client) checkToken() error {
 	return nil
 }
 
+// Authenticate attempts to authenticate the client with the configured authentication type
+// returns an AuthenticationError if authentication fails
 func (c *Client) Authenticate() error {
 	if c.isTokenValid() {
 		return nil
 	}
 
-	// if no token, get one
 	if c.AuthConfig.AuthType == AuthTypeClientKeyAndSecret {
 		token, err := c.authenticateWithClientCredentials()
 		if err != nil {
-			return err
+			return &AuthenticationError{Err: err, Msg: "Unable to authenticate using client credentials"}
 		}
 		c.AuthToken = token
 	} else if c.AuthConfig.AuthType == AuthTypePublicKey {
 		token, err := c.authenticateWithCertificate()
 		if err != nil {
-			return err
+			return &AuthenticationError{Err: err, Msg: "Unable to authenticate using client certificate"}
 		}
 		c.AuthToken = token
 	} else if c.AuthConfig.AuthType == AuthTypeUser {
 		token, err := c.authenticateWithUserFlow()
 		if err != nil {
-			return err
+			return &AuthenticationError{Err: err, Msg: "Unable to authenticate with user flow"}
 		}
 		c.AuthToken = token
 	} else if c.AuthConfig.AuthType == AuthTypeBasic {
 		token, err := c.authenticateWithBasicAuth()
 		if err != nil {
-			return err
+			return &AuthenticationError{Err: err, Msg: "Unable to authenticate using basic authentication"}
 		}
 		c.AuthToken = token
 	}
@@ -180,6 +216,7 @@ func (c *Client) authenticateWithUserFlow() (*oauth2.Token, error) {
 	return nil, nil
 }
 
+// GenerateKeypair generates a new RSA keypair
 func (c *Client) GenerateKeypair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	private, public, err := generateRsaKeyPair()
 	if err != nil {
@@ -188,12 +225,16 @@ func (c *Client) GenerateKeypair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return private, public, nil
 }
 
+// LoadKeypair loads an RSA keypair from the specified location. Names of the key files are node_key and node_key.pub
 func (c *Client) LoadKeypair(location string) (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	if location == "" {
+		return nil, nil, &ParameterError{Err: nil, Msg: fmt.Sprintf("location %s is not valid", location)}
+	}
 	var privateKey *rsa.PrivateKey
 	privateKeyFilename := location + string(os.PathSeparator) + "node_key"
 	_, err := os.Stat(privateKeyFilename)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &ParameterError{Err: nil, Msg: fmt.Sprintf("node_key at location %s is not valid", location)}
 	} else {
 		// load it
 		privateKeyBytes, err := readFileContents(privateKeyFilename)
@@ -211,7 +252,7 @@ func (c *Client) LoadKeypair(location string) (*rsa.PrivateKey, *rsa.PublicKey, 
 	publicKeyFilename := location + string(os.PathSeparator) + "node_key.pub"
 	_, err = os.Stat(publicKeyFilename)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &ParameterError{Err: nil, Msg: fmt.Sprintf("node_key.pub at location %s is not valid", location)}
 	} else {
 		// load it
 		publicKeyBytes, err := readFileContents(publicKeyFilename)
@@ -227,6 +268,7 @@ func (c *Client) LoadKeypair(location string) (*rsa.PrivateKey, *rsa.PublicKey, 
 	return privateKey, publicKey, nil
 }
 
+// Utility function to read file contents and return bytes
 func readFileContents(filename string) ([]byte, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -242,6 +284,7 @@ func readFileContents(filename string) ([]byte, error) {
 	return contents, nil
 }
 
+// SaveKeypair saves the specified RSA keypair to the specified location. Names of the key files are node_key and node_key.pub
 func (c *Client) SaveKeypair(location string, privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) error {
 	privateKeyPem, err := exportRsaPrivateKeyAsPem(privateKey)
 	if err != nil {
@@ -266,6 +309,8 @@ func (c *Client) SaveKeypair(location string, privateKey *rsa.PrivateKey, public
 	return nil
 }
 
+// authenticateWithCertificate used to authenticate using a signed JWT and the client assertion
+// type urn:ietf:params:oauth:grant-type:jwt-bearer.
 func (c *Client) authenticateWithCertificate() (*oauth2.Token, error) {
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")

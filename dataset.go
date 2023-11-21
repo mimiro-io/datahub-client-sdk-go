@@ -1,4 +1,4 @@
-package main
+package datahub
 
 import (
 	"encoding/json"
@@ -8,136 +8,187 @@ import (
 	"strconv"
 )
 
+// Dataset represents a dataset in the data hub.
+// Name is a unique identifier for the dataset for a given data hub instance.
+// Metadata is a map of metadata properties for the dataset.
 type Dataset struct {
 	Name     string
 	Metadata map[string]any
 }
-type ProxyDatasetConfig struct {
+
+// proxyDatasetConfig represents the configuration for a proxy dataset.
+// Sent as a data structure when creating a proxy dataset.
+type proxyDatasetConfig struct {
 	RemoteUrl        string `json:"remoteUrl"`
 	AuthProviderName string `json:"authProviderName"`
 }
 
-type CreateDatasetConfig struct {
-	ProxyDatasetConfig *ProxyDatasetConfig `json:"ProxyDatasetConfig"`
+// createDatasetConfig represents the configuration for a dataset.
+// Sent as a data structure when creating a dataset.
+type createDatasetConfig struct {
+	ProxyDatasetConfig *proxyDatasetConfig `json:"proxyDatasetConfig"`
 	PublicNamespaces   []string            `json:"publicNamespaces"`
 }
 
+// GetDataset gets a dataset by name.
+// returns a dataset if it exists, or an error if it does not.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetDataset(name string) (*Dataset, error) {
 	if name == "" {
-		return nil, errors.New("dataset name is required")
+		return nil, &ParameterError{Msg: "dataset name is required"}
 	}
 
 	err := c.checkToken()
 	if err != nil {
-		return nil, err
+		return nil, &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
 	}
 
-	client := NewHttpClient()
-	data, err := client.makeRequest(HTTP_GET, c.AuthToken.AccessToken, c.Server, "/datasets/"+name, nil, nil, nil)
+	client := c.makeHttpClient()
+	data, err := client.makeRequest(httpGet, "/datasets/"+name, nil, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, &RequestError{Msg: "unable to get dataset", Err: err}
 	}
 
 	datasetEntity := &egdm.Entity{}
 	if err := json.Unmarshal(data, datasetEntity); err != nil {
-		return nil, err
+		return nil, &ClientProcessingError{Msg: "unable to unmarshall dataset entity", Err: err}
 	}
 
 	dataset := &Dataset{}
+
+	// fixme: this is a fragile way to get the name of the dataset
 	dataset.Name = datasetEntity.Properties["ns0:name"].(string)
 
 	return dataset, nil
 }
 
+// GetDatasetEntity gets a dataset entity by name.
+// returns an Entity if it exists, or an error if it does not.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetDatasetEntity(name string) (*egdm.Entity, error) {
 	if name == "" {
-		return nil, errors.New("dataset name is required")
+		return nil, &ParameterError{Msg: "dataset name is required"}
 	}
 
 	err := c.checkToken()
 	if err != nil {
-		return nil, err
+		return nil, &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
 	}
 
-	client := NewHttpClient()
-	data, err := client.makeRequest(HTTP_GET, c.AuthToken.AccessToken, c.Server, "/datasets/"+name, nil, nil, nil)
+	client := c.makeHttpClient()
+	data, err := client.makeRequest(httpGet, "/datasets/"+name, nil, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, &RequestError{Msg: "unable to get dataset entity", Err: err}
 	}
 
 	datasetEntity := &egdm.Entity{}
 	if err := json.Unmarshal(data, datasetEntity); err != nil {
-		return nil, err
+		return nil, &ClientProcessingError{Msg: "unable to unmarshall dataset entity", Err: err}
 	}
 
 	return datasetEntity, nil
 }
 
-func (c *Client) PutDatasetEntity(dataset string, datasetEntity *egdm.Entity) error {
+// UpdateDatasetEntity updates the dataset entity for a named dataset.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty or the dataset entity is nil.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) UpdateDatasetEntity(dataset string, datasetEntity *egdm.Entity) error {
 	if dataset == "" {
-		return errors.New("dataset name is required")
+		return &ParameterError{Msg: "dataset name is required"}
 	}
 
 	if datasetEntity == nil {
-		return errors.New("dataset entity is required")
+		return &ParameterError{Msg: "dataset entity cannot be nil"}
 	}
 
-	err := c.checkToken()
-	if err != nil {
-		return err
-	}
-
-	client := NewHttpClient()
 	data, err := json.Marshal(datasetEntity)
 	if err != nil {
-		return err
+		return &ParameterError{Msg: "unable to serialise dataset entity", Err: err}
 	}
 
-	_, err = client.makeRequest(HTTP_PUT, c.AuthToken.AccessToken, c.Server, "/datasets/"+dataset, data, nil, nil)
+	err = c.checkToken()
+	if err != nil {
+		return &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+	}
+
+	client := c.makeHttpClient()
+	_, err = client.makeRequest(httpPut, "/datasets/"+dataset, data, nil, nil)
+	if err != nil {
+		return &RequestError{Msg: "unable to update dataset entity", Err: err}
+	}
+
 	return err
 }
 
-// CreateDataset creates a dataset if it does not exist, or updates the namespaces if it does.
-// returns an error if the dataset could not be created or updated.
-func (c *Client) CreateDataset(name string, namespaces []string) error {
+// AddDataset creates a dataset if it does not exist.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) AddDataset(name string, namespaces []string) error {
 	if name == "" {
-		return errors.New("dataset name is required")
+		return &ParameterError{Msg: "dataset name is required"}
 	}
 
-	err := c.checkToken()
-	if err != nil {
-		return err
+	// default to
+	if namespaces == nil {
+		namespaces = make([]string, 0)
 	}
 
-	conf := &CreateDatasetConfig{}
+	var err error
+
+	conf := &createDatasetConfig{}
 	conf.PublicNamespaces = namespaces
-
 	var b []byte
 	if len(conf.PublicNamespaces) > 0 {
 		b, err = json.Marshal(conf)
 		if err != nil {
-			return err
+			return &ParameterError{Msg: "unable to serialise create dataset config"}
 		}
 	}
 
-	path := "/datasets/" + name
-
-	client := NewHttpClient()
-	_, err = client.makeRequest(HTTP_POST, c.AuthToken.AccessToken, c.Server, path, b, nil, nil)
-	return err
-}
-
-// CreateProxyDataset creates a proxy dataset if it does not exist, or updates the namespaces, remoteDatasetURL and
-// authProviderName if it does. returns an error if the dataset could not be created or updated.
-func (c *Client) CreateProxyDataset(name string, namespaces []string, remoteDatasetURL string, authProviderName string) error {
-	err := c.checkToken()
+	err = c.checkToken()
 	if err != nil {
-		return err
+		return &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
 	}
 
-	conf := &CreateDatasetConfig{}
+	client := c.makeHttpClient()
+	_, err = client.makeRequest(httpPost, "/datasets/"+name, b, nil, nil)
+	if err != nil {
+		return &RequestError{Msg: "unable to create dataset", Err: err}
+	}
+
+	return nil
+}
+
+// AddProxyDataset creates a proxy dataset if it does not exist, or updates the namespaces, remoteDatasetURL and
+// authProviderName if it does. returns an error if the dataset could not be created or updated.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) AddProxyDataset(name string, namespaces []string, remoteDatasetURL string, authProviderName string) error {
+	var err error
+
+	if name == "" {
+		return &ParameterError{Msg: "dataset name is required"}
+	}
+
+	if remoteDatasetURL == "" {
+		return &ParameterError{Msg: "remote dataset URL is required"}
+	}
+
+	conf := &createDatasetConfig{}
 	conf.PublicNamespaces = namespaces
-	conf.ProxyDatasetConfig = &ProxyDatasetConfig{
+	conf.ProxyDatasetConfig = &proxyDatasetConfig{
 		RemoteUrl:        remoteDatasetURL,
 		AuthProviderName: authProviderName,
 	}
@@ -145,37 +196,68 @@ func (c *Client) CreateProxyDataset(name string, namespaces []string, remoteData
 	var b []byte
 	b, err = json.Marshal(conf)
 	if err != nil {
-		return err
+		return &ParameterError{Msg: "unable to serialise create dataset config"}
 	}
 
-	path := "/datasets/" + name
-	queryParams := map[string]string{"proxy": "true"}
+	err = c.checkToken()
+	if err != nil {
+		return &AuthenticationError{Msg: "invalid token or unable to authenticate", Err: err}
+	}
 
-	client := NewHttpClient()
-	_, err = client.makeRequest(HTTP_POST, c.AuthToken.AccessToken, c.Server, path, b, nil, queryParams)
-	return err
+	queryParams := map[string]string{"proxy": "true"}
+	client := c.makeHttpClient()
+	_, err = client.makeRequest(httpPost, "/datasets/"+name, b, nil, queryParams)
+	if err != nil {
+		return &RequestError{Msg: "unable to create proxy dataset", Err: err}
+	}
+
+	return nil
 }
 
+// DeleteDataset deletes a named dataset.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) DeleteDataset(dataset string) error {
 	if dataset == "" {
-		return errors.New("dataset name is required")
+		return &ParameterError{Msg: "dataset name is required"}
 	}
 
 	err := c.checkToken()
 	if err != nil {
-		return err
+		return &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
-	client := NewHttpClient()
-	_, err = client.makeRequest(HTTP_DELETE, c.AuthToken.AccessToken, c.Server, "/datasets/"+dataset, nil, nil, nil)
+	client := c.makeHttpClient()
+	_, err = client.makeRequest(httpDelete, "/datasets/"+dataset, nil, nil, nil)
 
-	return err
+	if err != nil {
+		return &RequestError{Msg: "unable to delete dataset", Err: err}
+	}
+
+	return nil
 }
 
+// GetChanges gets changes for a dataset.
+// returns an EntityCollection for the named dataset.
+// since parameter is an optional token to get changes since.
+// take parameter is an optional limit on the number of changes to return.
+// latestOnly parameter is an optional flag to only return the latest version of each entity.
+// reverse parameter is an optional flag to reverse the order of the changes.
+// expandURIs parameter is an optional flag to expand Entity URIs in the response.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetChanges(dataset string, since string, take int, latestOnly bool, reverse bool, expandURIs bool) (*egdm.EntityCollection, error) {
+	if dataset == "" {
+		return nil, &ParameterError{Msg: "dataset name is required"}
+	}
+
 	err := c.checkToken()
 	if err != nil {
-		return nil, err
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	params := map[string]string{}
@@ -195,10 +277,10 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 		params["reverse"] = "true"
 	}
 
-	client := NewHttpClient()
-	data, err := client.makeStreamingRequest(HTTP_GET, c.AuthToken.AccessToken, c.Server, "/datasets/"+dataset+"/changes", nil, nil, params)
+	client := c.makeHttpClient()
+	data, err := client.makeStreamingRequest(httpGet, "/datasets/"+dataset+"/changes", nil, nil, params)
 	if err != nil {
-		return nil, err
+		return nil, &RequestError{Msg: "unable to get changes", Err: err}
 	}
 	defer data.Close()
 
@@ -209,16 +291,26 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 	}
 	entityCollection, err := parser.LoadEntityCollection(data)
 	if err != nil {
-		return nil, err
+		return nil, &ClientProcessingError{Msg: "unable to parse changes", Err: err}
 	}
 
 	return entityCollection, nil
 }
 
+// GetEntities gets entities for a dataset.
+// returns an EntityCollection for the named dataset.
+// from parameter is an optional token to get changes since.
+// take parameter is an optional limit on the number of changes to return.
+// reverse parameter is an optional flag to reverse the order of the changes.
+// expandURIs parameter is an optional flag to expand Entity URIs in the response.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetEntities(dataset string, from string, take int, reverse bool, expandURIs bool) (*egdm.EntityCollection, error) {
 	err := c.checkToken()
 	if err != nil {
-		return nil, err
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	params := map[string]string{}
@@ -234,10 +326,10 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 		params["reverse"] = "true"
 	}
 
-	client := NewHttpClient()
-	data, err := client.makeStreamingRequest(HTTP_GET, c.AuthToken.AccessToken, c.Server, "/datasets/"+dataset+"/entities", nil, nil, params)
+	client := c.makeHttpClient()
+	data, err := client.makeStreamingRequest(httpGet, "/datasets/"+dataset+"/entities", nil, nil, params)
 	if err != nil {
-		return nil, err
+		return nil, &RequestError{Msg: "unable to get entities", Err: err}
 	}
 	defer data.Close()
 
@@ -248,51 +340,86 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 	}
 	entityCollection, err := parser.LoadEntityCollection(data)
 	if err != nil {
-		return nil, err
+		return nil, &ClientProcessingError{Msg: "unable to parse entities", Err: err}
 	}
 
 	return entityCollection, nil
 }
 
+// GetDatasets gets list of datasets.
+// returns []*Dataset for the named dataset.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetDatasets() ([]*Dataset, error) {
 	err := c.checkToken()
 	if err != nil {
-		return nil, err
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
-	client := NewHttpClient()
-	data, err := client.makeRequest(HTTP_GET, c.AuthToken.AccessToken, c.Server, "/datasets", nil, nil, nil)
+	client := c.makeHttpClient()
+	data, err := client.makeRequest(httpGet, "/datasets", nil, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, &RequestError{Msg: "unable to get datasets", Err: err}
 	}
 
 	datasets := make([]*Dataset, 0)
 	if err := json.Unmarshal(data, &datasets); err != nil {
-		return nil, err
+		return nil, &ClientProcessingError{Msg: "unable to parse datasets", Err: err}
 	}
 
 	return datasets, nil
 }
 
+// StoreEntities stores the entities in a named dataset.
+// dataset is the name of the dataset to be updated.
+// entityCollection is the set of entities to store.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty or entityCollection is nil.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) StoreEntities(dataset string, entityCollection *egdm.EntityCollection) error {
-	err := c.checkToken()
-	if err != nil {
-		return err
+	if dataset == "" {
+		return &ParameterError{Msg: "dataset name is required"}
 	}
 
-	client := NewHttpClient()
-	reader, err := client.makeStreamingWriterRequest(HTTP_POST, c.AuthToken.AccessToken, c.Server, "/datasets/"+dataset+"/entities", entityCollection.WriteEntityGraphJSON, nil, nil)
+	if entityCollection == nil {
+		return &ParameterError{Msg: "entity collection cannot be nil"}
+	}
+
+	err := c.checkToken()
 	if err != nil {
-		return err
+		return &AuthenticationError{Msg: "unable to authenticate", Err: err}
+	}
+
+	client := c.makeHttpClient()
+	reader, err := client.makeStreamingWriterRequest(httpPost, "/datasets/"+dataset+"/entities", entityCollection.WriteEntityGraphJSON, nil, nil)
+	if err != nil {
+		return &RequestError{Msg: "unable to store entities", Err: err}
 	}
 
 	return reader.Close()
 }
 
+// StoreEntityStream stores the entities in a named dataset.
+// dataset is the name of the dataset to be updated.
+// data is the stream of entities to store.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty or entityCollection is nil.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
+	if dataset == "" {
+		return &ParameterError{Msg: "dataset name is required"}
+	}
+
+	if data == nil {
+		return &ParameterError{Msg: "data cannot be nil"}
+	}
+
 	err := c.checkToken()
 	if err != nil {
-		return err
+		return &AuthenticationError{Msg: "unable to authenticate", Err: err}
 	}
 
 	writerFunc := func(writer io.Writer) error {
@@ -301,7 +428,7 @@ func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
 		contextJson, _ := json.Marshal(ctx)
 		_, err = writer.Write(contextJson)
 		if err != nil {
-			return err
+			return errors.New("unable to write context")
 		}
 
 		// create entity parser and read from data stream
@@ -311,7 +438,7 @@ func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
 				entityJson, _ := json.Marshal(entity)
 				_, err = writer.Write(entityJson)
 				if err != nil {
-					return err
+					return errors.New("unable to write entity")
 				}
 				return nil
 			},
@@ -319,10 +446,10 @@ func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
 		return err
 	}
 
-	client := NewHttpClient()
-	reader, err := client.makeStreamingWriterRequest(HTTP_POST, c.AuthToken.AccessToken, c.Server, "/datasets/"+dataset+"/entities", writerFunc, nil, nil)
+	client := c.makeHttpClient()
+	reader, err := client.makeStreamingWriterRequest(httpPost, "/datasets/"+dataset+"/entities", writerFunc, nil, nil)
 	if err != nil {
-		return err
+		return &RequestError{Msg: "unable to store entities", Err: err}
 	}
 
 	return reader.Close()
