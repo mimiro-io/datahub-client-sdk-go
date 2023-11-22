@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/google/uuid"
+	egdm "github.com/mimiro-io/entity-graph-data-model"
 	"testing"
+	"time"
 )
 
 func TestJobBuilder(t *testing.T) {
@@ -592,4 +594,130 @@ func TestGetJobsSchedule(t *testing.T) {
 	if schedule == nil {
 		t.Error("expected schedule to be present")
 	}
+}
+
+func TestJobManagement(t *testing.T) {
+	client := NewAdminUserConfiguredClient()
+
+	// create two test datasets
+	datasetId1 := "dataset-" + uuid.New().String()
+	datasetId2 := "dataset-" + uuid.New().String()
+
+	// use the client to create the datasets
+	err := client.AddDataset(datasetId1, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.AddDataset(datasetId2, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities in dataset 1
+	collection := egdm.NewEntityCollection(nil)
+	entity1Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-1")
+	if err != nil {
+		t.Error(err)
+	}
+	entity1 := egdm.NewEntity().SetID(entity1Id)
+	err = collection.AddEntity(entity1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId1, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// create full sync job to move entities to the other dataset
+	jobId := "job-" + uuid.New().String()
+	jb := NewJobBuilder(jobId, jobId)
+	jb.WithDatasetSource(datasetId1, true)
+	jb.WithDatasetSink(datasetId2)
+	jb.WithPaused(true)
+	tb := NewJobTriggerBuilder()
+	tb.AsFullSync()
+	tb.AsCron("@every 1s")
+	jb.AddTrigger(tb.JobTrigger())
+	job := jb.Job()
+
+	// add job
+	err = client.AddJob(job)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check job is there
+	job, err = client.GetJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check no data in second dataset
+	entities, err := client.GetEntities(datasetId2, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 0 {
+		t.Errorf("expected no entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// run job
+	err = client.RunJobAsFullSync(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// add pause here just in case...
+	time.Sleep(2 * time.Second)
+
+	// check data in second dataset
+	entities, err = client.GetEntities(datasetId2, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 1 {
+		t.Errorf("expected 1 entity in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// add another entity to the source dataset
+	entity2Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-2")
+	if err != nil {
+		t.Error(err)
+	}
+
+	entity2 := egdm.NewEntity().SetID(entity2Id)
+	err = collection.AddEntity(entity2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId1, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// unpause the job
+	err = client.ResumeJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// wait 2 seconds
+	time.Sleep(2 * time.Second)
+
+	// check data in second dataset
+	entities, err = client.GetEntities(datasetId2, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 2 {
+		t.Errorf("expected 2 entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
 }
