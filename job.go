@@ -23,6 +23,12 @@ func NewJavascriptTransform(code string, parallelism int) *Transform {
 	return transform
 }
 
+// JobTrigger represents a trigger for a job
+// TriggerType can be cron or onchange
+// JobType can be incremental or fullsync
+// Schedule is the cron schedule
+// MonitoredDataset is the dataset to monitor for changes
+// OnError is a list of error handlers
 type JobTrigger struct {
 	TriggerType      string                   `json:"triggerType"`
 	JobType          string                   `json:"jobType"`
@@ -31,10 +37,14 @@ type JobTrigger struct {
 	OnError          []map[string]interface{} `json:"onError,omitempty"`
 }
 
+// JobTriggerBuilder is a builder for JobTrigger
 type JobTriggerBuilder struct {
 	trigger *JobTrigger
 }
 
+// NewJobTriggerBuilder creates a new JobTriggerBuilder.
+// Use the build functions to build the JobTrigger after
+// calling the configuration functions.
 func NewJobTriggerBuilder() *JobTriggerBuilder {
 	jtb := &JobTriggerBuilder{}
 	jtb.trigger = &JobTrigger{}
@@ -42,32 +52,41 @@ func NewJobTriggerBuilder() *JobTriggerBuilder {
 	return jtb
 }
 
-func (jtb *JobTriggerBuilder) JobTrigger() *JobTrigger {
+// Build builds the JobTrigger
+func (jtb *JobTriggerBuilder) Build() *JobTrigger {
 	return jtb.trigger
 }
 
-func (jtb *JobTriggerBuilder) AsCron(schedule string) *JobTriggerBuilder {
+// WithCron configures the JobTrigger as a cron trigger
+// schedule is the cron schedule
+func (jtb *JobTriggerBuilder) WithCron(schedule string) *JobTriggerBuilder {
 	jtb.trigger.TriggerType = "cron"
 	jtb.trigger.Schedule = schedule
 	return jtb
 }
 
-func (jtb *JobTriggerBuilder) AsOnChange(dataset string) *JobTriggerBuilder {
+// WithOnChange configures the JobTrigger as an onchange trigger
+// dataset is the dataset to monitor for changes
+func (jtb *JobTriggerBuilder) WithOnChange(dataset string) *JobTriggerBuilder {
 	jtb.trigger.TriggerType = "onchange"
 	jtb.trigger.MonitoredDataset = dataset
 	return jtb
 }
 
-func (jtb *JobTriggerBuilder) AsIncremental() *JobTriggerBuilder {
+// WithIncremental configures the JobTrigger as an incremental job
+func (jtb *JobTriggerBuilder) WithIncremental() *JobTriggerBuilder {
 	jtb.trigger.JobType = "incremental"
 	return jtb
 }
 
-func (jtb *JobTriggerBuilder) AsFullSync() *JobTriggerBuilder {
+// WithFullSync configures the JobTrigger as a full sync job
+func (jtb *JobTriggerBuilder) WithFullSync() *JobTriggerBuilder {
 	jtb.trigger.JobType = "fullsync"
 	return jtb
 }
 
+// AddLogErrorHandler adds a log error handler to the JobTrigger
+// maxItems is the maximum number of items to log
 func (jtb *JobTriggerBuilder) AddLogErrorHandler(maxItems int) *JobTrigger {
 	errHandler := map[string]interface{}{}
 	errHandler["errorHandler"] = "log"
@@ -76,6 +95,9 @@ func (jtb *JobTriggerBuilder) AddLogErrorHandler(maxItems int) *JobTrigger {
 	return jtb.trigger
 }
 
+// AddRerunErrorHandler adds a kill error handler to the JobTrigger
+// retryDelay is the delay in seconds before retrying
+// maxRetries is the maximum number of retries that should be attempted
 func (jtb *JobTriggerBuilder) AddRerunErrorHandler(retryDelay int, maxRetries int) *JobTrigger {
 	errHandler := map[string]interface{}{}
 	errHandler["errorHandler"] = "reRun"
@@ -85,6 +107,7 @@ func (jtb *JobTriggerBuilder) AddRerunErrorHandler(retryDelay int, maxRetries in
 	return jtb.trigger
 }
 
+// Job is a datahub job
 type Job struct {
 	Title       string                 `json:"title"`
 	Id          string                 `json:"id"`
@@ -98,10 +121,14 @@ type Job struct {
 	BatchSize   int                    `json:"batchSize"`
 }
 
+// JobBuilder is a builder for Job
 type JobBuilder struct {
 	job *Job
 }
 
+// NewJobBuilder creates a new JobBuilder.
+// Use the build functions to build the Job after
+// title and id must be provided, by non-empty and be unique
 func NewJobBuilder(title string, id string) *JobBuilder {
 	jb := &JobBuilder{}
 	jb.job = &Job{}
@@ -110,26 +137,34 @@ func NewJobBuilder(title string, id string) *JobBuilder {
 	return jb
 }
 
+// WithDescription adds a description to the job
 func (jb *JobBuilder) WithDescription(description string) *JobBuilder {
 	jb.job.Description = description
 	return jb
 }
 
+// WithTags adds tags to the job
 func (jb *JobBuilder) WithTags(tags []string) *JobBuilder {
 	jb.job.Tags = tags
 	return jb
 }
 
+// WithSource adds a source to the job. See data hub documentation on valid sources
+// Use of the WithXXXSource simplifies most use cases
 func (jb *JobBuilder) WithSource(source map[string]interface{}) *JobBuilder {
 	jb.job.Source = source
 	return jb
 }
 
+// WithSink adds a sink to the job. See data hub documentation on valid sinks
+// Use of the WithXXXSink simplifies most use cases
 func (jb *JobBuilder) WithSink(sink map[string]interface{}) *JobBuilder {
 	jb.job.Sink = sink
 	return jb
 }
 
+// WithTransform adds a transform to the job. See data hub documentation on valid transforms
+// Use of the WithXXXTransform simplifies most use cases
 func (jb *JobBuilder) WithTransform(transform *Transform) *JobBuilder {
 	jb.job.Transform = transform
 	return jb
@@ -143,26 +178,33 @@ func (jb *JobBuilder) WithJavascriptTransform(code string, parallelism int) *Job
 	return jb
 }
 
+// WithTriggers adds triggers to the job. See data hub documentation on valid triggers
 func (jb *JobBuilder) WithTriggers(triggers []*JobTrigger) *JobBuilder {
 	jb.job.Triggers = triggers
 	return jb
 }
 
+// AddTrigger adds a trigger to the job. Use the JobTriggerBuilder to construct valid triggers
 func (jb *JobBuilder) AddTrigger(trigger *JobTrigger) *JobBuilder {
 	jb.job.Triggers = append(jb.job.Triggers, trigger)
 	return jb
 }
 
+// WithPaused adds a paused flag to the job
 func (jb *JobBuilder) WithPaused(paused bool) *JobBuilder {
 	jb.job.Paused = paused
 	return jb
 }
 
+// WithBatchSize adds a batch size to the job
 func (jb *JobBuilder) WithBatchSize(batchSize int) *JobBuilder {
 	jb.job.BatchSize = batchSize
 	return jb
 }
 
+// WithDatasetSource adds a dataset source to the job
+// name is the name of the dataset
+// latestOnly is a flag to indicate whether only the latest version of the entities should be used
 func (jb *JobBuilder) WithDatasetSource(name string, latestOnly bool) *JobBuilder {
 	jb.job.Source = map[string]interface{}{
 		"Type":       "DatasetSource",
@@ -172,6 +214,9 @@ func (jb *JobBuilder) WithDatasetSource(name string, latestOnly bool) *JobBuilde
 	return jb
 }
 
+// WithHttpSource adds an http source to the job
+// url is the url to the source
+// latestOnly is a flag to indicate whether only the latest version of the entities should be used
 func (jb *JobBuilder) WithHttpSource(url string, latestOnly bool) *JobBuilder {
 	jb.job.Source = map[string]interface{}{
 		"Type":       "HttpDatasetSource",
@@ -181,6 +226,10 @@ func (jb *JobBuilder) WithHttpSource(url string, latestOnly bool) *JobBuilder {
 	return jb
 }
 
+// WithSecureHttpSource adds a secure http source to the job
+// url is the url to the source
+// latestOnly is a flag to indicate whether only the latest version of the entities should be used
+// tokenProvider is the name of the token provider to use
 func (jb *JobBuilder) WithSecureHttpSource(url string, latestOnly bool, tokenProvider string) *Job {
 	jb.job.Source = map[string]interface{}{
 		"Type":          "HttpDatasetSource",
@@ -191,6 +240,8 @@ func (jb *JobBuilder) WithSecureHttpSource(url string, latestOnly bool, tokenPro
 	return jb.job
 }
 
+// WithDatasetSink adds a dataset sink to the job
+// name is the name of the dataset
 func (jb *JobBuilder) WithDatasetSink(name string) *Job {
 	jb.job.Sink = map[string]interface{}{
 		"Type": "DatasetSink",
@@ -199,6 +250,8 @@ func (jb *JobBuilder) WithDatasetSink(name string) *Job {
 	return jb.job
 }
 
+// WithHttpSink adds an http sink to the job
+// url is the url to the sink
 func (jb *JobBuilder) WithHttpSink(url string) *Job {
 	jb.job.Sink = map[string]interface{}{
 		"Type": "HttpDatasetSink",
@@ -207,6 +260,9 @@ func (jb *JobBuilder) WithHttpSink(url string) *Job {
 	return jb.job
 }
 
+// WithSecureHttpSink adds a secure http sink to the job
+// url is the url to the sink
+// tokenProvider is the name of the token provider to use
 func (jb *JobBuilder) WithSecureHttpSink(url string, tokenProvider string) *Job {
 	jb.job.Sink = map[string]interface{}{
 		"Type":          "HttpDatasetSink",
@@ -216,10 +272,16 @@ func (jb *JobBuilder) WithSecureHttpSink(url string, tokenProvider string) *Job 
 	return jb.job
 }
 
-func (jb *JobBuilder) Job() *Job {
+// Build builds the Job
+func (jb *JobBuilder) Build() *Job {
 	return jb.job
 }
 
+// AddJob adds a job to the data hub
+// Use the JobBuilder to create valid jobs
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job is nil, the job id is empty or the job title is empty.
+// returns a RequestError if the request fails.
 func (c *Client) AddJob(job *Job) error {
 	if job == nil {
 		return &ParameterError{Msg: "job cannot be nil"}
@@ -227,6 +289,10 @@ func (c *Client) AddJob(job *Job) error {
 
 	if job.Id == "" {
 		return &ParameterError{Msg: "job id cannot be empty"}
+	}
+
+	if job.Title == "" {
+		return &ParameterError{Msg: "job title cannot be empty"}
 	}
 
 	jobData, err := json.Marshal(job)
@@ -248,7 +314,11 @@ func (c *Client) AddJob(job *Job) error {
 	return nil
 }
 
-func (c *Client) GetJobs(filter *JobsFilter) ([]*Job, error) {
+// GetJobs gets a list of jobs from the data hub
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) GetJobs() ([]*Job, error) {
 	err := c.checkToken()
 	if err != nil {
 		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
@@ -269,6 +339,11 @@ func (c *Client) GetJobs(filter *JobsFilter) ([]*Job, error) {
 	return jobs, nil
 }
 
+// DeleteJob deletes a job from the data hub
+// id is the id of the job to delete
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) DeleteJob(id string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -288,6 +363,12 @@ func (c *Client) DeleteJob(id string) error {
 	return nil
 }
 
+// GetJob gets a job from the data hub
+// id is the id of the job to get
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetJob(id string) (*Job, error) {
 	if id == "" {
 		return nil, &ParameterError{Msg: "id cannot be empty"}
@@ -313,9 +394,22 @@ func (c *Client) GetJob(id string) (*Job, error) {
 	return job, nil
 }
 
+// UpdateJob updates a job in the data hub
+// Use the JobBuilder to create valid jobs
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job is nil, the job id is empty or the job title is empty.
+// returns a RequestError if the request fails.
 func (c *Client) UpdateJob(job *Job) error {
 	if job == nil {
 		return &ParameterError{Msg: "job cannot be nil"}
+	}
+
+	if job.Id == "" {
+		return &ParameterError{Msg: "job id cannot be empty"}
+	}
+
+	if job.Title == "" {
+		return &ParameterError{Msg: "job title cannot be empty"}
 	}
 
 	data, err := json.Marshal(job)
@@ -337,12 +431,17 @@ func (c *Client) UpdateJob(job *Job) error {
 	return nil
 }
 
+// JobStatus represents the status of a running job
 type JobStatus struct {
 	JobId    string    `json:"jobId"`
 	JobTitle string    `json:"jobTitle"`
 	Started  time.Time `json:"started"`
 }
 
+// GetJobStatuses gets the status of all running jobs from the data hub
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetJobStatuses() ([]*JobStatus, error) {
 	err := c.checkToken()
 	if err != nil {
@@ -364,10 +463,12 @@ func (c *Client) GetJobStatuses() ([]*JobStatus, error) {
 	return job, nil
 }
 
+// ScheduleEntries is a container for all scheduled jobs
 type ScheduleEntries struct {
 	Entries []ScheduleEntry `json:"entries"`
 }
 
+// ScheduleEntry is information about a scheduled job
 type ScheduleEntry struct {
 	ID       int       `json:"id"`
 	JobID    string    `json:"jobId"`
@@ -376,6 +477,10 @@ type ScheduleEntry struct {
 	Prev     time.Time `json:"prev"`
 }
 
+// GetJobsSchedule gets the schedule for all scheduled jobs from the data hub
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetJobsSchedule() (*ScheduleEntries, error) {
 	err := c.checkToken()
 	if err != nil {
@@ -397,6 +502,7 @@ func (c *Client) GetJobsSchedule() (*ScheduleEntries, error) {
 	return entries, nil
 }
 
+// JobResult represents the history of job runs
 type JobResult struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
@@ -406,6 +512,10 @@ type JobResult struct {
 	Processed int       `json:"processed"`
 }
 
+// GetJobsHistory gets the history of all jobs from the data hub
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetJobsHistory() ([]*JobResult, error) {
 	err := c.checkToken()
 	if err != nil {
@@ -427,6 +537,11 @@ func (c *Client) GetJobsHistory() ([]*JobResult, error) {
 	return jobResults, nil
 }
 
+// PauseJob pauses a job in the data hub
+// id is the id of the job to pause
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) PauseJob(id string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -446,6 +561,11 @@ func (c *Client) PauseJob(id string) error {
 	return nil
 }
 
+// ResumeJob resumes a job in the data hub
+// id is the id of the job to resume
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) ResumeJob(id string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -465,6 +585,11 @@ func (c *Client) ResumeJob(id string) error {
 	return nil
 }
 
+// RunJobAsIncremental runs a job as an incremental job
+// id is the id of the job to run
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) RunJobAsIncremental(id string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -484,6 +609,11 @@ func (c *Client) RunJobAsIncremental(id string) error {
 	return nil
 }
 
+// RunJobAsFullSync runs a job as a full sync job
+// id is the id of the job to run
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) RunJobAsFullSync(id string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -503,6 +633,11 @@ func (c *Client) RunJobAsFullSync(id string) error {
 	return nil
 }
 
+// KillJob kills a job in the data hub
+// id is the id of the job to kill
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) KillJob(id string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -522,6 +657,12 @@ func (c *Client) KillJob(id string) error {
 	return nil
 }
 
+// ResetJobSinceToken resets the job since token
+// id is the id of the job to reset
+// token is the since token to reset to
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
 func (c *Client) ResetJobSinceToken(id string, token string) error {
 	if id == "" {
 		return &ParameterError{Msg: "id cannot be empty"}
@@ -546,6 +687,12 @@ func (c *Client) ResetJobSinceToken(id string, token string) error {
 	return nil
 }
 
+// GetJobStatus gets the status of a job from the data hub
+// id is the id of the job to get the status for
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the job id is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
 func (c *Client) GetJobStatus(id string) (*JobStatus, error) {
 	if id == "" {
 		return nil, &ParameterError{Msg: "id cannot be empty"}
@@ -576,8 +723,8 @@ func (c *Client) GetJobStatus(id string) (*JobStatus, error) {
 }
 
 // Jobs Filtering
-func NewJobsFilter() *JobsFilter {
-	jf := &JobsFilter{}
+func newJobsFilter() *jobsFilter {
+	jf := &jobsFilter{}
 	jf.hasTags = make([]string, 0)
 	return jf
 }
@@ -597,8 +744,8 @@ func NewJobsFilter() *JobsFilter {
 // lastrun<2020-11-19T14:56:17+01:00 or lastrun>2020-11-19T14:56:17+01:00
 // triggers=@every 60 or triggers=fullsync or triggers=person.Crm
 
-// JobsFilter structure used for filtering jobs when using the ListJobs function
-type JobsFilter struct {
+// jobsFilter structure used for filtering jobs when using the ListJobs function
+type jobsFilter struct {
 	isPaused               bool
 	hasTitle               string
 	hasTags                []string
@@ -614,80 +761,80 @@ type JobsFilter struct {
 	hasTrigger             string
 }
 
-// HasTitle adds a title filter to the JobsFilter
-func (jf *JobsFilter) HasTitle(title string) *JobsFilter {
+// HasTitle adds a title filter to the jobsFilter
+func (jf *jobsFilter) HasTitle(title string) *jobsFilter {
 	jf.hasTitle = title
 	return jf
 }
 
-// HasTags adds a tags filter to the JobsFilter
-func (jf *JobsFilter) HasTags(tags string) *JobsFilter {
+// HasTags adds a tags filter to the jobsFilter
+func (jf *jobsFilter) HasTags(tags string) *jobsFilter {
 	jf.hasTags = append(jf.hasTags, tags)
 	return jf
 }
 
-// HasId adds an id filter to the JobsFilter
-func (jf *JobsFilter) HasId(id string) *JobsFilter {
+// HasId adds an id filter to the jobsFilter
+func (jf *jobsFilter) HasId(id string) *jobsFilter {
 	jf.hasId = id
 	return jf
 }
 
-// IsPaused adds a paused filter to the JobsFilter
-func (jf *JobsFilter) IsPaused(paused bool) *JobsFilter {
+// IsPaused adds a paused filter to the jobsFilter
+func (jf *jobsFilter) IsPaused(paused bool) *jobsFilter {
 	jf.isPaused = paused
 	return jf
 }
 
-// HasSource adds a source filter to the JobsFilter
-func (jf *JobsFilter) HasSource(source string) *JobsFilter {
+// HasSource adds a source filter to the jobsFilter
+func (jf *jobsFilter) HasSource(source string) *jobsFilter {
 	jf.hasSource = source
 	return jf
 }
 
-// HasSink adds a sink filter to the JobsFilter
-func (jf *JobsFilter) HasSink(sink string) *JobsFilter {
+// HasSink adds a sink filter to the jobsFilter
+func (jf *jobsFilter) HasSink(sink string) *jobsFilter {
 	jf.hasSink = sink
 	return jf
 }
 
-// HasTransform adds a transform filter to the JobsFilter
-func (jf *JobsFilter) HasTransform(transform string) *JobsFilter {
+// HasTransform adds a transform filter to the jobsFilter
+func (jf *jobsFilter) HasTransform(transform string) *jobsFilter {
 	jf.hasTransform = transform
 	return jf
 }
 
-// HasError adds an error filter to the JobsFilter
-func (jf *JobsFilter) HasError(err string) *JobsFilter {
+// HasError adds an error filter to the jobsFilter
+func (jf *jobsFilter) HasError(err string) *jobsFilter {
 	jf.hasError = err
 	return jf
 }
 
-// HasDurationGreaterThan adds a duration filter to the JobsFilter
-func (jf *JobsFilter) HasDurationGreaterThan(duration string) *JobsFilter {
+// HasDurationGreaterThan adds a duration filter to the jobsFilter
+func (jf *jobsFilter) HasDurationGreaterThan(duration string) *jobsFilter {
 	jf.hasDurationGreaterThan = duration
 	return jf
 }
 
-// HasDurationLessThan adds a duration filter to the JobsFilter
-func (jf *JobsFilter) HasDurationLessThan(duration string) *JobsFilter {
+// HasDurationLessThan adds a duration filter to the jobsFilter
+func (jf *jobsFilter) HasDurationLessThan(duration string) *jobsFilter {
 	jf.hasDurationLessThan = duration
 	return jf
 }
 
-// HasLastRunAfter adds a last run after filter to the JobsFilter
-func (jf *JobsFilter) HasLastRunAfter(lastRun string) *JobsFilter {
+// HasLastRunAfter adds a last run after filter to the jobsFilter
+func (jf *jobsFilter) HasLastRunAfter(lastRun string) *jobsFilter {
 	jf.hasLastRunAfter = lastRun
 	return jf
 }
 
-// HasLastRunBefore adds a last run before filter to the JobsFilter
-func (jf *JobsFilter) HasLastRunBefore(lastRun string) *JobsFilter {
+// HasLastRunBefore adds a last run before filter to the jobsFilter
+func (jf *jobsFilter) HasLastRunBefore(lastRun string) *jobsFilter {
 	jf.hasLastRunBefore = lastRun
 	return jf
 }
 
-// HasTrigger adds a triggers filter to the JobsFilter
-func (jf *JobsFilter) HasTrigger(triggers string) *JobsFilter {
+// HasTrigger adds a triggers filter to the jobsFilter
+func (jf *jobsFilter) HasTrigger(triggers string) *jobsFilter {
 	jf.hasTrigger = triggers
 	return jf
 }

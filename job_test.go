@@ -20,14 +20,14 @@ func TestJobBuilder(t *testing.T) {
 	jb.WithJavascriptTransform(js, 0)
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 0 * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 0 * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
 	// serialise to json
-	jobJson, err := json.Marshal(jb.Job())
+	jobJson, err := json.Marshal(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -147,19 +147,19 @@ func TestAddJob(t *testing.T) {
 	jb.WithPaused(true)
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
 
 	// check job is there
-	jobs, err := client.GetJobs(nil)
+	jobs, err := client.GetJobs()
 	if err != nil {
 		t.Error(err)
 	}
@@ -282,19 +282,19 @@ func TestDeleteJob(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
 
 	// check job is there
-	jobs, err := client.GetJobs(nil)
+	jobs, err := client.GetJobs()
 	if err != nil {
 		t.Error(err)
 	}
@@ -319,7 +319,7 @@ func TestDeleteJob(t *testing.T) {
 	}
 
 	// check job is gone
-	jobs, err = client.GetJobs(nil)
+	jobs, err = client.GetJobs()
 	if err != nil {
 		t.Error(err)
 	}
@@ -351,13 +351,13 @@ func TestGetJob(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -391,13 +391,13 @@ func TestUpdateJob(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -460,13 +460,13 @@ func TestGetJobStatuses(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -510,13 +510,13 @@ func TestGetJobsHistory(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -560,13 +560,13 @@ func TestGetJobsSchedule(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -638,10 +638,10 @@ func TestJobManagement(t *testing.T) {
 	jb.WithDatasetSink(datasetId2)
 	jb.WithPaused(true)
 	tb := NewJobTriggerBuilder()
-	tb.AsFullSync()
-	tb.AsCron("@every 1s")
-	jb.AddTrigger(tb.JobTrigger())
-	job := jb.Job()
+	tb.WithFullSync()
+	tb.WithCron("@every 1s")
+	jb.AddTrigger(tb.Build())
+	job := jb.Build()
 
 	// add job
 	err = client.AddJob(job)
