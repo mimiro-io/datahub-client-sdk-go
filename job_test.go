@@ -720,4 +720,40 @@ func TestJobManagement(t *testing.T) {
 		t.Errorf("expected 2 entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
 	}
 
+	// delete job
+	err = client.DeleteJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check job not there
+	job, err = client.GetJob(jobId)
+	if err == nil {
+		t.Errorf("expected job with id '%s' to be deleted", jobId)
+	}
+
+	// delete datasets
+	err = client.DeleteDataset(datasetId1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.DeleteDataset(datasetId2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check datasets not there
+	datasets, err := client.GetDatasets()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// iterate dataset and error if either of the deleted ones are in there
+	for _, ds := range datasets {
+		if ds.Name == datasetId1 || ds.Name == datasetId2 {
+			t.Errorf("expected dataset with id '%s' to be deleted", ds.Name)
+		}
+	}
+
 }
