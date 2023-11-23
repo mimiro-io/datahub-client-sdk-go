@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/google/uuid"
+	egdm "github.com/mimiro-io/entity-graph-data-model"
 	"testing"
+	"time"
 )
 
 func TestJobBuilder(t *testing.T) {
@@ -18,14 +20,14 @@ func TestJobBuilder(t *testing.T) {
 	jb.WithJavascriptTransform(js, 0)
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 0 * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 0 * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
 	// serialise to json
-	jobJson, err := json.Marshal(jb.Job())
+	jobJson, err := json.Marshal(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -145,19 +147,19 @@ func TestAddJob(t *testing.T) {
 	jb.WithPaused(true)
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
 
 	// check job is there
-	jobs, err := client.GetJobs(nil)
+	jobs, err := client.GetJobs()
 	if err != nil {
 		t.Error(err)
 	}
@@ -280,19 +282,19 @@ func TestDeleteJob(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
 
 	// check job is there
-	jobs, err := client.GetJobs(nil)
+	jobs, err := client.GetJobs()
 	if err != nil {
 		t.Error(err)
 	}
@@ -317,7 +319,7 @@ func TestDeleteJob(t *testing.T) {
 	}
 
 	// check job is gone
-	jobs, err = client.GetJobs(nil)
+	jobs, err = client.GetJobs()
 	if err != nil {
 		t.Error(err)
 	}
@@ -349,13 +351,13 @@ func TestGetJob(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -389,13 +391,13 @@ func TestUpdateJob(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -458,13 +460,13 @@ func TestGetJobStatuses(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -508,13 +510,13 @@ func TestGetJobsHistory(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -558,13 +560,13 @@ func TestGetJobsSchedule(t *testing.T) {
 	jb.WithDatasetSink("my-sink-dataset")
 
 	triggerBuilder := NewJobTriggerBuilder()
-	triggerBuilder.AsCron("0 0 * * *")
-	triggerBuilder.AsIncremental()
+	triggerBuilder.WithCron("0 0 * * *")
+	triggerBuilder.WithIncremental()
 	triggerBuilder.AddLogErrorHandler(10)
 
-	jb.AddTrigger(triggerBuilder.JobTrigger())
+	jb.AddTrigger(triggerBuilder.Build())
 
-	err := client.AddJob(jb.Job())
+	err := client.AddJob(jb.Build())
 	if err != nil {
 		t.Error(err)
 	}
@@ -592,4 +594,285 @@ func TestGetJobsSchedule(t *testing.T) {
 	if schedule == nil {
 		t.Error("expected schedule to be present")
 	}
+}
+
+func TestJobManagement(t *testing.T) {
+	client := NewAdminUserConfiguredClient()
+
+	// create two test datasets
+	datasetId1 := "dataset-" + uuid.New().String()
+	datasetId2 := "dataset-" + uuid.New().String()
+
+	// use the client to create the datasets
+	err := client.AddDataset(datasetId1, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.AddDataset(datasetId2, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities in dataset 1
+	collection := egdm.NewEntityCollection(nil)
+	entity1Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-1")
+	if err != nil {
+		t.Error(err)
+	}
+	entity1 := egdm.NewEntity().SetID(entity1Id)
+	err = collection.AddEntity(entity1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId1, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// create full sync job to move entities to the other dataset
+	jobId := "job-" + uuid.New().String()
+	jb := NewJobBuilder(jobId, jobId)
+	jb.WithDatasetSource(datasetId1, true)
+	jb.WithDatasetSink(datasetId2)
+	jb.WithPaused(true)
+	tb := NewJobTriggerBuilder()
+	tb.WithFullSync()
+	tb.WithCron("@every 1s")
+	jb.AddTrigger(tb.Build())
+	job := jb.Build()
+
+	// add job
+	err = client.AddJob(job)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check job is there
+	job, err = client.GetJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check no data in second dataset
+	entities, err := client.GetEntities(datasetId2, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 0 {
+		t.Errorf("expected no entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// run job
+	err = client.RunJobAsFullSync(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// add pause here just in case...
+	time.Sleep(2 * time.Second)
+
+	// check data in second dataset
+	entities, err = client.GetEntities(datasetId2, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 1 {
+		t.Errorf("expected 1 entity in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// add another entity to the source dataset
+	entity2Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-2")
+	if err != nil {
+		t.Error(err)
+	}
+
+	entity2 := egdm.NewEntity().SetID(entity2Id)
+	err = collection.AddEntity(entity2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId1, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// unpause the job
+	err = client.ResumeJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// wait 2 seconds
+	time.Sleep(2 * time.Second)
+
+	// check data in second dataset
+	entities, err = client.GetEntities(datasetId2, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 2 {
+		t.Errorf("expected 2 entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// delete job
+	err = client.DeleteJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check job not there
+	job, err = client.GetJob(jobId)
+	if err == nil {
+		t.Errorf("expected job with id '%s' to be deleted", jobId)
+	}
+
+	// delete datasets
+	err = client.DeleteDataset(datasetId1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.DeleteDataset(datasetId2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check datasets not there
+	datasets, err := client.GetDatasets()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// iterate dataset and error if either of the deleted ones are in there
+	for _, ds := range datasets {
+		if ds.Name == datasetId1 || ds.Name == datasetId2 {
+			t.Errorf("expected dataset with id '%s' to be deleted", ds.Name)
+		}
+	}
+
+}
+
+func TestUnionDatasetSource(t *testing.T) {
+	client := NewAdminUserConfiguredClient()
+
+	// create three test datasets
+	datasetId1 := "dataset-" + uuid.New().String()
+	datasetId2 := "dataset-" + uuid.New().String()
+	datasetId3 := "dataset-" + uuid.New().String()
+
+	// use the client to create the datasets
+	err := client.AddDataset(datasetId1, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.AddDataset(datasetId2, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.AddDataset(datasetId3, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities in dataset 1
+	collection := egdm.NewEntityCollection(nil)
+	entity1Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-1")
+	if err != nil {
+		t.Error(err)
+	}
+	entity1 := egdm.NewEntity().SetID(entity1Id)
+	err = collection.AddEntity(entity1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId1, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities in dataset 2
+	collection = egdm.NewEntityCollection(nil)
+	entity2Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-2")
+	if err != nil {
+		t.Error(err)
+	}
+	entity2 := egdm.NewEntity().SetID(entity2Id)
+	err = collection.AddEntity(entity2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId2, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// create full sync job to move entities to the other dataset
+	jobId := "job-" + uuid.New().String()
+	jb := NewJobBuilder(jobId, jobId)
+	jb.WithUnionDatasetSource([]string{datasetId1, datasetId2}, true)
+	jb.WithDatasetSink(datasetId3)
+	jb.WithPaused(true)
+
+	tb := NewJobTriggerBuilder()
+	tb.WithFullSync()
+	tb.WithCron("@every 1s")
+	jb.AddTrigger(tb.Build())
+
+	job := jb.Build()
+
+	// add job
+	err = client.AddJob(job)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check no data in third dataset
+	entities, err := client.GetEntities(datasetId3, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 0 {
+		t.Errorf("expected no entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// run job
+	err = client.RunJobAsFullSync(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// add pause here just in case...
+	time.Sleep(2 * time.Second)
+
+	// check data in third dataset
+	entities, err = client.GetEntities(datasetId3, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 2 {
+		t.Errorf("expected 2 entities in dataset '%s', got %d", datasetId3, len(entities.Entities))
+	}
+
+	// delete job
+	err = client.DeleteJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// delete datasets
+	client.DeleteDataset(datasetId1)
+	client.DeleteDataset(datasetId2)
+	client.DeleteDataset(datasetId3)
 }
