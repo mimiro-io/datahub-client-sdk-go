@@ -230,46 +230,67 @@ func (jb *JobBuilder) WithHttpSource(url string, latestOnly bool) *JobBuilder {
 // url is the url to the source
 // latestOnly is a flag to indicate whether only the latest version of the entities should be used
 // tokenProvider is the name of the token provider to use
-func (jb *JobBuilder) WithSecureHttpSource(url string, latestOnly bool, tokenProvider string) *Job {
+func (jb *JobBuilder) WithSecureHttpSource(url string, latestOnly bool, tokenProvider string) *JobBuilder {
 	jb.job.Source = map[string]interface{}{
 		"Type":          "HttpDatasetSource",
 		"Url":           url,
 		"LatestOnly":    latestOnly,
 		"TokenProvider": tokenProvider,
 	}
-	return jb.job
+	return jb
 }
 
 // WithDatasetSink adds a dataset sink to the job
 // name is the name of the dataset
-func (jb *JobBuilder) WithDatasetSink(name string) *Job {
+func (jb *JobBuilder) WithDatasetSink(name string) *JobBuilder {
 	jb.job.Sink = map[string]interface{}{
 		"Type": "DatasetSink",
 		"Name": name,
 	}
-	return jb.job
+	return jb
 }
 
 // WithHttpSink adds an http sink to the job
 // url is the url to the sink
-func (jb *JobBuilder) WithHttpSink(url string) *Job {
+func (jb *JobBuilder) WithHttpSink(url string) *JobBuilder {
 	jb.job.Sink = map[string]interface{}{
 		"Type": "HttpDatasetSink",
 		"Url":  url,
 	}
-	return jb.job
+	return jb
 }
 
 // WithSecureHttpSink adds a secure http sink to the job
 // url is the url to the sink
 // tokenProvider is the name of the token provider to use
-func (jb *JobBuilder) WithSecureHttpSink(url string, tokenProvider string) *Job {
+func (jb *JobBuilder) WithSecureHttpSink(url string, tokenProvider string) *JobBuilder {
 	jb.job.Sink = map[string]interface{}{
 		"Type":          "HttpDatasetSink",
 		"Url":           url,
 		"TokenProvider": tokenProvider,
 	}
-	return jb.job
+	return jb
+}
+
+// WithUnionDatasetSource adds a UnionDatasetSource to the job.
+// name is the name of the union dataset.
+// contributingDatasets is a list of dataset names that contribute to the union.
+// latestOnly indicates whether the union should only contain the latest version of an entity from each source.
+func (jb *JobBuilder) WithUnionDatasetSource(contributingDatasets []string, latestOnly bool) *JobBuilder {
+	datasetSources := make([]map[string]interface{}, 0)
+	for _, dataset := range contributingDatasets {
+		datasetSources = append(datasetSources, map[string]interface{}{
+			"Type":       "DatasetSource",
+			"Name":       dataset,
+			"LatestOnly": latestOnly,
+		})
+	}
+
+	jb.job.Source = map[string]interface{}{
+		"Type":           "UnionDatasetSource",
+		"DatasetSources": datasetSources,
+	}
+	return jb
 }
 
 // Build builds the Job

@@ -757,3 +757,122 @@ func TestJobManagement(t *testing.T) {
 	}
 
 }
+
+func TestUnionDatasetSource(t *testing.T) {
+	client := NewAdminUserConfiguredClient()
+
+	// create three test datasets
+	datasetId1 := "dataset-" + uuid.New().String()
+	datasetId2 := "dataset-" + uuid.New().String()
+	datasetId3 := "dataset-" + uuid.New().String()
+
+	// use the client to create the datasets
+	err := client.AddDataset(datasetId1, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.AddDataset(datasetId2, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.AddDataset(datasetId3, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities in dataset 1
+	collection := egdm.NewEntityCollection(nil)
+	entity1Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-1")
+	if err != nil {
+		t.Error(err)
+	}
+	entity1 := egdm.NewEntity().SetID(entity1Id)
+	err = collection.AddEntity(entity1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId1, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities in dataset 2
+	collection = egdm.NewEntityCollection(nil)
+	entity2Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-2")
+	if err != nil {
+		t.Error(err)
+	}
+	entity2 := egdm.NewEntity().SetID(entity2Id)
+	err = collection.AddEntity(entity2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = client.StoreEntities(datasetId2, collection)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// create full sync job to move entities to the other dataset
+	jobId := "job-" + uuid.New().String()
+	jb := NewJobBuilder(jobId, jobId)
+	jb.WithUnionDatasetSource([]string{datasetId1, datasetId2}, true)
+	jb.WithDatasetSink(datasetId3)
+	jb.WithPaused(true)
+
+	tb := NewJobTriggerBuilder()
+	tb.WithFullSync()
+	tb.WithCron("@every 1s")
+	jb.AddTrigger(tb.Build())
+
+	job := jb.Build()
+
+	// add job
+	err = client.AddJob(job)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check no data in third dataset
+	entities, err := client.GetEntities(datasetId3, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 0 {
+		t.Errorf("expected no entities in dataset '%s', got %d", datasetId2, len(entities.Entities))
+	}
+
+	// run job
+	err = client.RunJobAsFullSync(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// add pause here just in case...
+	time.Sleep(2 * time.Second)
+
+	// check data in third dataset
+	entities, err = client.GetEntities(datasetId3, "", 0, false, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(entities.Entities) != 2 {
+		t.Errorf("expected 2 entities in dataset '%s', got %d", datasetId3, len(entities.Entities))
+	}
+
+	// delete job
+	err = client.DeleteJob(jobId)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// delete datasets
+	client.DeleteDataset(datasetId1)
+	client.DeleteDataset(datasetId2)
+	client.DeleteDataset(datasetId3)
+}
