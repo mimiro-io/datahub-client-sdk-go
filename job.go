@@ -216,6 +216,28 @@ func (jb *JobBuilder) WithSecureHttpSink(url string, tokenProvider string) *Job 
 	return jb.job
 }
 
+// WithUnionDatasetSource adds a UnionDatasetSource to the job.
+// name is the name of the union dataset.
+// contributingDatasets is a list of dataset names that contribute to the union.
+// latestOnly indicates whether the union should only contain the latest version of an entity from each source.
+func (jb *JobBuilder) WithUnionDatasetSource(name string, contributingDatasets []string, latestOnly bool) *JobBuilder {
+	datasetSources := make([]map[string]interface{}, 0)
+	for _, dataset := range contributingDatasets {
+		datasetSources = append(datasetSources, map[string]interface{}{
+			"Type":       "DatasetSource",
+			"Name":       dataset,
+			"LatestOnly": latestOnly,
+		})
+	}
+
+	jb.job.Source = map[string]interface{}{
+		"Type":           "UnionDatasetSource",
+		"Name":           name,
+		"DatasetSources": datasetSources,
+	}
+	return jb
+}
+
 func (jb *JobBuilder) Job() *Job {
 	return jb.job
 }
