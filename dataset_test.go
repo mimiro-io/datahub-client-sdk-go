@@ -93,7 +93,7 @@ func TestStoreEntities(t *testing.T) {
 
 	// make entity collection
 	namespaceManager := egdm.NewNamespaceContext()
-	prefixedId, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity1")
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
 	ec := egdm.NewEntityCollection(namespaceManager)
 	entity := egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
@@ -136,7 +136,7 @@ func TestGetChanges(t *testing.T) {
 
 	// make entity collection
 	namespaceManager := egdm.NewNamespaceContext()
-	prefixedId, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity1")
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
 	ec := egdm.NewEntityCollection(namespaceManager)
 	entity := egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
@@ -168,7 +168,7 @@ func TestGetChanges(t *testing.T) {
 	}
 
 	// add some more entities and try and get changes again
-	prefixedId, err = namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity2")
+	prefixedId, err = namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity2")
 	ec = egdm.NewEntityCollection(namespaceManager)
 	entity = egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
@@ -204,7 +204,7 @@ func TestChangesWithLatestOnly(t *testing.T) {
 
 	// make entity collection
 	namespaceManager := egdm.NewNamespaceContext()
-	prefixedId, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity1")
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
 	ec := egdm.NewEntityCollection(namespaceManager)
 	entity := egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
@@ -226,7 +226,7 @@ func TestChangesWithLatestOnly(t *testing.T) {
 	}
 
 	// add some more entities and try and get changes again
-	prefixedId, err = namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity2")
+	prefixedId, err = namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity2")
 	ec = egdm.NewEntityCollection(namespaceManager)
 	entity = egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
@@ -234,7 +234,7 @@ func TestChangesWithLatestOnly(t *testing.T) {
 		t.Error(err)
 	}
 	entity2 := egdm.NewEntity().SetID(prefixedId)
-	namePredicate, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/name")
+	namePredicate, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/name")
 	entity2.SetProperty(namePredicate, "bob")
 	err = ec.AddEntity(entity2)
 	if err != nil {
@@ -273,14 +273,14 @@ func TestGetChangesUsingTake(t *testing.T) {
 
 	// make entity collection
 	namespaceManager := egdm.NewNamespaceContext()
-	prefixedId, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity1")
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
 	ec := egdm.NewEntityCollection(namespaceManager)
 	entity := egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
 	if err != nil {
 		t.Error(err)
 	}
-	prefixedId, err = namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity2")
+	prefixedId, err = namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity2")
 	entity2 := egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity2)
 	if err != nil {
