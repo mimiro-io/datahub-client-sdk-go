@@ -18,9 +18,6 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 )
 
-type Query struct {
-}
-
 type EntityIterator interface {
 	// Next returns the next available entity or nil if no more entities are available
 	Next() *egdm.Entity
@@ -379,8 +376,4 @@ func (c *Client) isTokenValid() bool {
 	}
 
 	return c.AuthToken.Valid()
-}
-
-func (c *Client) RunQuery(query *Query) map[string]any {
-	return nil
 }
