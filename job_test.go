@@ -616,7 +616,7 @@ func TestJobManagement(t *testing.T) {
 
 	// store entities in dataset 1
 	collection := egdm.NewEntityCollection(nil)
-	entity1Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-1")
+	entity1Id, err := collection.NamespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity-1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -685,7 +685,7 @@ func TestJobManagement(t *testing.T) {
 	}
 
 	// add another entity to the source dataset
-	entity2Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-2")
+	entity2Id, err := collection.NamespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity-2")
 	if err != nil {
 		t.Error(err)
 	}
@@ -784,7 +784,7 @@ func TestUnionDatasetSource(t *testing.T) {
 
 	// store entities in dataset 1
 	collection := egdm.NewEntityCollection(nil)
-	entity1Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-1")
+	entity1Id, err := collection.NamespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity-1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -801,7 +801,7 @@ func TestUnionDatasetSource(t *testing.T) {
 
 	// store entities in dataset 2
 	collection = egdm.NewEntityCollection(nil)
-	entity2Id, err := collection.NamespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity-2")
+	entity2Id, err := collection.NamespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity-2")
 	if err != nil {
 		t.Error(err)
 	}
