@@ -346,6 +346,108 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 	return entityCollection, nil
 }
 
+// GetEntitiesStream gets entities for a dataset as a stream from the start position defined.
+// returns an EntityCollection for the named dataset.
+// from parameter is an optional token to get changes since.
+// take parameter is an optional limit on the number of changes to return.
+// reverse parameter is an optional flag to reverse the order of the changes.
+// expandURIs parameter is an optional flag to expand Entity URIs in the response.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) GetEntitiesStream(dataset string, from string, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
+	err := c.checkToken()
+	if err != nil {
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
+	}
+
+	params := map[string]string{}
+	if from != "" {
+		params["from"] = from
+	}
+
+	if take > 0 {
+		params["limit"] = strconv.Itoa(take)
+	}
+
+	if reverse {
+		params["reverse"] = "true"
+	}
+
+	stream, err := c.NewEntitiesStream(dataset, from, take, reverse, expandURIs)
+	return stream, err
+}
+
+type EntitiesStream struct {
+	client            *Client
+	currentCollection *egdm.EntityCollection
+	startFrom         string
+	take              int
+	reverse           bool
+	expandURIs        bool
+	dataset           string
+	currentPos        int
+}
+
+func (c *Client) NewEntitiesStream(dataset string, from string, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
+	es := &EntitiesStream{
+		client:     c,
+		startFrom:  from,
+		take:       take,
+		reverse:    reverse,
+		expandURIs: expandURIs,
+		dataset:    dataset,
+	}
+
+	// load initial collection so that context is there
+	var err error
+	es.currentCollection, err = es.client.GetEntities(es.dataset, es.startFrom, es.take, es.reverse, es.expandURIs)
+	if err != nil {
+		return nil, err
+	}
+
+	return es, nil
+}
+
+func (e *EntitiesStream) Next() (*egdm.Entity, error) {
+	var err error
+	if e.currentPos == len(e.currentCollection.Entities) {
+		// query for next page with client
+		e.currentCollection, err = e.client.GetEntities(e.dataset, e.currentCollection.Continuation.Token, e.take, e.reverse, e.expandURIs)
+		if err != nil {
+			return nil, err
+		}
+		e.currentPos = 0
+	}
+
+	// no more entities
+	if len(e.currentCollection.Entities) == 0 {
+		return nil, nil
+	}
+
+	entity := e.currentCollection.Entities[e.currentPos]
+	e.currentPos++
+
+	return entity, nil
+}
+
+func (e *EntitiesStream) Context() *egdm.Context {
+	if e.currentCollection == nil {
+		return nil
+	}
+
+	return e.currentCollection.NamespaceManager.AsContext()
+}
+
+func (e *EntitiesStream) Token() *egdm.Continuation {
+	if e.currentCollection == nil {
+		return nil
+	}
+
+	return e.currentCollection.Continuation
+}
+
 // GetDatasets gets list of datasets.
 // returns []*Dataset for the named dataset.
 // returns an AuthenticationError if the client is unable to authenticate.

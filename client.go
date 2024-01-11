@@ -19,11 +19,9 @@ import (
 )
 
 type EntityIterator interface {
-	// Next returns the next available entity or nil if no more entities are available
-	Next() *egdm.Entity
-
-	// Token returns a continuation token that can be used to resume the iteration.
-	Token() string
+	Context() *egdm.Context
+	Next() (*egdm.Entity, error)
+	Token() *egdm.Continuation
 }
 
 type AuthType int

@@ -88,7 +88,7 @@ func TestQueryForEntityById(t *testing.T) {
 
 	// make entity collection
 	namespaceManager := egdm.NewNamespaceContext()
-	prefixedId, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity1")
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
 	ec := egdm.NewEntityCollection(namespaceManager)
 	entity := egdm.NewEntity().SetID(prefixedId)
 	err = ec.AddEntity(entity)
@@ -128,7 +128,7 @@ func TestForRelatedEntities(t *testing.T) {
 
 	// make entity collection
 	namespaceManager := egdm.NewNamespaceContext()
-	prefixedId, err := namespaceManager.AssertPrefixFromURI("http://data.example.com/things/entity1")
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
 	ec := egdm.NewEntityCollection(namespaceManager)
 	entity := egdm.NewEntity().SetID(prefixedId)
 	entity.SetReference("http://data.example.com/things/related", "http://data.example.com/things/entity2")

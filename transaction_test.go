@@ -28,12 +28,12 @@ func TestProcessTransaction(t *testing.T) {
 	txn := NewTransaction()
 
 	// create an entity
-	entityId, err := txn.NamespaceManager.AssertPrefixFromURI("http://data.example.io/entity1")
+	entityId, err := txn.NamespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.io/entity1")
 	entity := egdm.NewEntity().SetID(entityId)
 	txn.DatasetEntities[datasetId1] = append(txn.DatasetEntities[datasetId1], entity)
 
 	// create another entity
-	entityId2, err := txn.NamespaceManager.AssertPrefixFromURI("http://data.example.io/entity2")
+	entityId2, err := txn.NamespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.io/entity2")
 	entity2 := egdm.NewEntity().SetID(entityId2)
 	txn.DatasetEntities[datasetId2] = append(txn.DatasetEntities[datasetId2], entity2)
 
