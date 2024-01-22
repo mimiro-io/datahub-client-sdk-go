@@ -2,6 +2,7 @@ package datahub
 
 import (
 	"encoding/json"
+	egdm "github.com/mimiro-io/entity-graph-data-model"
 	"io"
 )
 
@@ -157,7 +158,142 @@ func (qb *QueryBuilder) Build() *Query {
 	return qb.query
 }
 
-func (c *Client) RunQuery(query *Query) ([]map[string]any, error) {
+type QueryResultEntitiesStream struct {
+	client            *Client
+	currentCollection *egdm.EntityCollection
+	currentPos        int
+}
+
+func (c *Client) RunHopQuery(entityId string, predicate string, datasets []string, inverse bool, limit int) (EntityIterator, error) {
+	qb := NewQueryBuilder()
+	qb.query.StartingEntities = make([]string, 0)
+	qb.query.StartingEntities = append(qb.query.StartingEntities, entityId)
+	qb.WithInverse(inverse)
+	qb.WithLimit(limit)
+	qb.WithPredicate(predicate)
+	if datasets != nil {
+		qb.WithDatasets(datasets)
+	}
+	return c.newQueryResultEntitiesStream(qb.Build())
+}
+
+func (c *Client) newQueryResultEntitiesStream(query *Query) (EntityIterator, error) {
+	es := &QueryResultEntitiesStream{
+		client:     c,
+		currentPos: 0,
+	}
+
+	// load initial collection so that context is there
+	var err error
+	if err != nil {
+		return nil, err
+	}
+	result, err := c.RunQuery(query)
+	if err != nil {
+		return nil, err
+	}
+
+	es.currentCollection, err = es.makeEntityCollectionFromQueryResult(result)
+	if err != nil {
+		return nil, err
+	}
+
+	return es, nil
+}
+
+func (e *QueryResultEntitiesStream) makeEntityCollectionFromQueryResult(data []any) (*egdm.EntityCollection, error) {
+	context := data[0].(map[string]any)
+	resultRows := data[1].([]any)
+	continuation := data[2].([]any)
+
+	ctx := egdm.NewNamespaceContext()
+
+	namespacePrefixes := context["namespaces"].(map[string]any)
+	for key, value := range namespacePrefixes {
+		ctx.StorePrefixExpansionMapping(key, value.(string))
+	}
+
+	ec := egdm.NewEntityCollection(ctx)
+	for _, row := range resultRows {
+		ec.AddEntityFromMap(row.([]any)[2].(map[string]any))
+	}
+	err := ec.ExpandNamespacePrefixes()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(continuation) == 1 {
+		cont := egdm.NewContinuation()
+		cont.Token = continuation[0].(string)
+		ec.SetContinuationToken(cont)
+	} else {
+		ec.SetContinuationToken(nil)
+	}
+
+	return ec, nil
+}
+
+func (e *QueryResultEntitiesStream) Next() (*egdm.Entity, error) {
+	if e.currentPos == len(e.currentCollection.Entities) {
+		if e.currentCollection.Continuation == nil {
+			return nil, nil
+		}
+
+		// query for next page with client
+		token := e.currentCollection.Continuation.Token
+		query := NewQueryBuilder().WithContinuations([]string{token}).Build()
+		result, err := e.client.RunQuery(query)
+		if err != nil {
+			return nil, err
+		}
+
+		e.currentCollection, err = e.makeEntityCollectionFromQueryResult(result)
+		if err != nil {
+			return nil, err
+		}
+		e.currentPos = 0
+	}
+
+	// no more entities
+	if len(e.currentCollection.Entities) == 0 {
+		return nil, nil
+	}
+
+	entity := e.currentCollection.Entities[e.currentPos]
+	e.currentPos++
+
+	return entity, nil
+}
+
+func (e *QueryResultEntitiesStream) Context() *egdm.Context {
+	if e.currentCollection == nil {
+		return nil
+	}
+
+	return e.currentCollection.NamespaceManager.AsContext()
+}
+
+func (e *QueryResultEntitiesStream) Token() *egdm.Continuation {
+	if e.currentCollection == nil {
+		return nil
+	}
+
+	return e.currentCollection.Continuation
+}
+
+func (c *Client) RunStreamingQuery(query *Query) (EntityIterator, error) {
+	if len(query.StartingEntities) != 1 {
+		return nil, &ParameterError{Msg: "query must have exactly one starting entity"}
+	}
+
+	if query.Predicate == "" {
+		return nil, &ParameterError{Msg: "query must have a predicate"}
+	}
+
+	return c.newQueryResultEntitiesStream(query)
+}
+
+func (c *Client) RunQuery(query *Query) ([]any, error) {
 	if query == nil {
 		return nil, &ParameterError{Msg: "query cannot be nil"}
 	}
@@ -178,10 +314,10 @@ func (c *Client) RunQuery(query *Query) ([]map[string]any, error) {
 		return nil, &RequestError{Msg: "unable to execute query", Err: err}
 	}
 
-	result := make([]map[string]any, 0)
+	result := make([]any, 0)
 	err = json.Unmarshal(response, &result)
 	if err != nil {
-		return nil, &ClientProcessingError{Msg: "unable to unmarshal job", Err: err}
+		return nil, &ClientProcessingError{Msg: "unable to unmarshal query", Err: err}
 	}
 
 	return result, nil
