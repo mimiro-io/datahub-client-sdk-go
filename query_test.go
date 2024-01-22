@@ -146,6 +146,7 @@ func TestForRelatedEntities(t *testing.T) {
 	qb := NewQueryBuilder()
 	qb.WithEntityId("http://data.example.com/things/entity2")
 	qb.WithInverse(true)
+	qb.WithDatasets([]string{datasetName})
 	query := qb.Build()
 
 	results, err := client.RunQuery(query)
@@ -155,5 +156,72 @@ func TestForRelatedEntities(t *testing.T) {
 
 	if results == nil {
 		t.Error("expected results")
+	}
+}
+
+func TestStreamResultForHop(t *testing.T) {
+	client := NewAdminUserConfiguredClient()
+
+	datasetName := "test-" + uuid.New().String()
+
+	err := client.AddDataset(datasetName, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// make entity collection
+	namespaceManager := egdm.NewNamespaceContext()
+	ec := egdm.NewEntityCollection(namespaceManager)
+
+	prefixedId, err := namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity1")
+	entity := egdm.NewEntity().SetID(prefixedId)
+	entity.SetReference("http://data.example.com/things/related", "http://data.example.com/things/entity3")
+	err = ec.AddEntity(entity)
+	if err != nil {
+		t.Error(err)
+	}
+
+	prefixedId, err = namespaceManager.AssertPrefixedIdentifierFromURI("http://data.example.com/things/entity2")
+	entity = egdm.NewEntity().SetID(prefixedId)
+	entity.SetReference("http://data.example.com/things/related", "http://data.example.com/things/entity3")
+	err = ec.AddEntity(entity)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// store entities
+	err = client.StoreEntities(datasetName, ec)
+	if err != nil {
+		t.Error(err)
+	}
+
+	stream, err := client.RunHopQuery("http://data.example.com/things/entity3", "http://data.example.com/things/related", []string{datasetName}, true, 1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	e1, err := stream.Next()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if e1.ID != "http://data.example.com/things/entity1" {
+		t.Errorf("expected entity id to be 'ns0:entity1', got '%s'", e1.ID)
+	}
+
+	e2, err := stream.Next()
+	if err != nil {
+		t.Error(err)
+	}
+	if e2.ID != "http://data.example.com/things/entity2" {
+		t.Errorf("expected entity id to be 'ns0:entity2', got '%s'", e2.ID)
+	}
+
+	e3, err := stream.Next()
+	if err != nil {
+		t.Error(err)
+	}
+	if e3 != nil {
+		t.Errorf("expected entity to be nil, got '%s'", e3.ID)
 	}
 }

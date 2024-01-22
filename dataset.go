@@ -375,7 +375,7 @@ func (c *Client) GetEntitiesStream(dataset string, from string, take int, revers
 		params["reverse"] = "true"
 	}
 
-	stream, err := c.NewEntitiesStream(dataset, from, take, reverse, expandURIs)
+	stream, err := c.newEntitiesStream(dataset, from, take, reverse, expandURIs)
 	return stream, err
 }
 
@@ -390,7 +390,7 @@ type EntitiesStream struct {
 	currentPos        int
 }
 
-func (c *Client) NewEntitiesStream(dataset string, from string, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
+func (c *Client) newEntitiesStream(dataset string, from string, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
 	es := &EntitiesStream{
 		client:     c,
 		startFrom:  from,
