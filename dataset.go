@@ -297,6 +297,27 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 	return entityCollection, nil
 }
 
+// GetChangesStream gets entities for a dataset as a stream from the since position defined.
+// returns an EntityIterator over the changes for the named dataset.
+// since parameter is an optional token to get changes since.
+// take parameter is an optional limit on the number of changes to return in each batch.
+// reverse parameter is an optional flag to reverse the order of the changes.
+// latestOnly parameter is an optional flag to only return the latest version of each entity.
+// expandURIs parameter is an optional flag to expand Entity URIs in the response.
+// returns an AuthenticationError if the client is unable to authenticate.
+// returns a ParameterError if the dataset name is empty.
+// returns a RequestError if the request fails.
+// returns a ClientProcessingError if the response cannot be processed.
+func (c *Client) GetChangesStream(dataset string, since string, latestOnly bool, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
+	err := c.checkToken()
+	if err != nil {
+		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
+	}
+
+	stream, err := c.newChangesStream(dataset, since, latestOnly, take, reverse, expandURIs)
+	return stream, err
+}
+
 // GetEntities gets entities for a dataset.
 // returns an EntityCollection for the named dataset.
 // from parameter is an optional token to get changes since.
@@ -347,7 +368,7 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 }
 
 // GetEntitiesStream gets entities for a dataset as a stream from the start position defined.
-// returns an EntityCollection for the named dataset.
+// returns an EntityIterator over the entities in the named dataset.
 // from parameter is an optional token to get changes since.
 // take parameter is an optional limit on the number of changes to return.
 // reverse parameter is an optional flag to reverse the order of the changes.
@@ -360,19 +381,6 @@ func (c *Client) GetEntitiesStream(dataset string, from string, take int, revers
 	err := c.checkToken()
 	if err != nil {
 		return nil, &AuthenticationError{Msg: "unable to authenticate", Err: err}
-	}
-
-	params := map[string]string{}
-	if from != "" {
-		params["from"] = from
-	}
-
-	if take > 0 {
-		params["limit"] = strconv.Itoa(take)
-	}
-
-	if reverse {
-		params["reverse"] = "true"
 	}
 
 	stream, err := c.newEntitiesStream(dataset, from, take, reverse, expandURIs)
@@ -388,6 +396,31 @@ type EntitiesStream struct {
 	expandURIs        bool
 	dataset           string
 	currentPos        int
+	nextBatch         func() (*egdm.EntityCollection, error)
+}
+
+func (c *Client) newChangesStream(dataset string, since string, latestOnly bool, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
+	es := &EntitiesStream{
+		client:     c,
+		startFrom:  since,
+		take:       take,
+		reverse:    reverse,
+		expandURIs: expandURIs,
+		dataset:    dataset,
+	}
+
+	// load initial collection so that context is there
+	var err error
+	es.currentCollection, err = es.client.GetChanges(es.dataset, es.startFrom, es.take, latestOnly, es.reverse, es.expandURIs)
+	if err != nil {
+		return nil, err
+	}
+
+	es.nextBatch = func() (*egdm.EntityCollection, error) {
+		return es.client.GetChanges(es.dataset, es.currentCollection.Continuation.Token, es.take, latestOnly, es.reverse, es.expandURIs)
+	}
+
+	return es, nil
 }
 
 func (c *Client) newEntitiesStream(dataset string, from string, take int, reverse bool, expandURIs bool) (EntityIterator, error) {
@@ -407,6 +440,10 @@ func (c *Client) newEntitiesStream(dataset string, from string, take int, revers
 		return nil, err
 	}
 
+	es.nextBatch = func() (*egdm.EntityCollection, error) {
+		return es.client.GetEntities(es.dataset, es.currentCollection.Continuation.Token, es.take, es.reverse, es.expandURIs)
+	}
+
 	return es, nil
 }
 
@@ -414,7 +451,7 @@ func (e *EntitiesStream) Next() (*egdm.Entity, error) {
 	var err error
 	if e.currentPos == len(e.currentCollection.Entities) {
 		// query for next page with client
-		e.currentCollection, err = e.client.GetEntities(e.dataset, e.currentCollection.Continuation.Token, e.take, e.reverse, e.expandURIs)
+		e.currentCollection, err = e.nextBatch() // e.client.GetEntities(e.dataset, e.currentCollection.Continuation.Token, e.take, e.reverse, e.expandURIs)
 		if err != nil {
 			return nil, err
 		}
