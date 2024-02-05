@@ -4,7 +4,7 @@ go 1.21.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.7.0
-	github.com/mimiro-io/entity-graph-data-model v0.7.0
+	github.com/mimiro-io/entity-graph-data-model v0.7.5
 	golang.org/x/oauth2 v0.13.0
 )
 
