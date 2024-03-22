@@ -286,6 +286,8 @@ func (c *Client) GetChanges(dataset string, since string, take int, latestOnly b
 
 	nsManager := egdm.NewNamespaceContext()
 	parser := egdm.NewEntityParser(nsManager)
+	parser.WithLenientNamespaceChecks()
+
 	if expandURIs {
 		parser = parser.WithExpandURIs()
 	}
@@ -356,6 +358,7 @@ func (c *Client) GetEntities(dataset string, from string, take int, reverse bool
 
 	nsManager := egdm.NewNamespaceContext()
 	parser := egdm.NewEntityParser(nsManager)
+	parser.WithLenientNamespaceChecks()
 	if expandURIs {
 		parser = parser.WithExpandURIs()
 	}
@@ -571,7 +574,7 @@ func (c *Client) StoreEntityStream(dataset string, data io.Reader) error {
 		}
 
 		// create entity parser and read from data stream
-		entityParser := egdm.NewEntityParser(nil).WithExpandURIs()
+		entityParser := egdm.NewEntityParser(nil).WithExpandURIs().WithLenientNamespaceChecks()
 		err := entityParser.Parse(data,
 			func(entity *egdm.Entity) error {
 				entityJson, _ := json.Marshal(entity)
