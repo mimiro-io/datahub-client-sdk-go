@@ -14,7 +14,12 @@ func newHttpClient(server string, accessToken string) *httpClient {
 	client := &httpClient{}
 	client.server = server
 	client.accessToken = accessToken
-	client.timeout = 30 * time.Second
+	client.timeout = 0
+	return client
+}
+
+func (client *httpClient) withTimeout(seconds int) *httpClient {
+	client.timeout = time.Duration(seconds) * time.Second
 	return client
 }
 
