@@ -622,7 +622,7 @@ func (c *Client) RunJobAsIncremental(id string) error {
 	}
 
 	client := c.makeHttpClient()
-	_, err = client.makeRequest(httpPut, "/job/"+id+"/run?type=incremental", nil, nil, nil)
+	_, err = client.makeRequest(httpPut, "/job/"+id+"/run?jobType=incremental", nil, nil, nil)
 	if err != nil {
 		return &RequestError{Msg: "unable to kill job", Err: err}
 	}
@@ -646,7 +646,7 @@ func (c *Client) RunJobAsFullSync(id string) error {
 	}
 
 	client := c.makeHttpClient()
-	_, err = client.makeRequest(httpPut, "/job/"+id+"/run?type=fullsync", nil, nil, nil)
+	_, err = client.makeRequest(httpPut, "/job/"+id+"/run?jobType=fullsync", nil, nil, nil)
 	if err != nil {
 		return &RequestError{Msg: "unable to kill job", Err: err}
 	}
