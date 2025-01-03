@@ -6,9 +6,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 func createJWTForTokenRequest(subject string, audience string, privateKey *rsa.PrivateKey) (string, error) {
