@@ -63,6 +63,14 @@ client.WithPublicKeyAuth(clientId, privateKey)
 err = client.Authenticate()
 ```
 
+### Check if Datahub is alive
+
+To check if the datahub is alive with the health endpoint.
+
+```go
+status, err := client.IsAlive()
+```
+
 ### Add Dataset
 
 To Add a dataset to the datahub.

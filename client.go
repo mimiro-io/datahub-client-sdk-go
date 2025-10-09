@@ -375,3 +375,18 @@ func (c *Client) isTokenValid() bool {
 
 	return c.AuthToken.Valid()
 }
+
+// IsAlive checks if the datahub server is reachable and healthy
+// returns true if the server is healthy, false otherwise
+// returns a RequestError if the request fails
+func (c *Client) IsAlive() (bool, error) {
+	client := c.makeHttpClient()
+	data, err := client.makeRequest(httpGet, "/health", nil, nil, nil)
+	if err != nil {
+		return false, &RequestError{Msg: "unable to get health status", Err: err}
+	}
+	if string(data) == "UP" {
+		return true, nil
+	}
+	return false, nil
+}
