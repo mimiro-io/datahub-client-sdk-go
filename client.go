@@ -46,6 +46,7 @@ type authConfig struct {
 	ClientID     string
 	ClientSecret string
 	Audience     string
+	Scopes       []string
 	PrivateKey   *rsa.PrivateKey
 }
 
@@ -112,13 +113,15 @@ func (c *Client) WithAdminAuth(username string, password string) *Client {
 // audience is the audience identifier
 // clientKey is the client key
 // clientSecret is the client secret
-func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, clientKey string, clientSecret string) *Client {
+// scopes are optional; an authorizer that grants only requested scopes, such as Ory Hydra, needs them in the request
+func (c *Client) WithClientKeyAndSecretAuth(authorizer string, audience string, clientKey string, clientSecret string, scopes ...string) *Client {
 	c.AuthConfig = &authConfig{
 		AuthType:     AuthTypeClientKeyAndSecret,
 		ClientID:     clientKey,
 		ClientSecret: clientSecret,
 		Authorizer:   authorizer,
 		Audience:     audience,
+		Scopes:       scopes,
 	}
 	return c
 }
@@ -362,6 +365,7 @@ func (c *Client) authenticateWithClientCredentials() (*oauth2.Token, error) {
 		ClientID:       c.AuthConfig.ClientID,
 		ClientSecret:   c.AuthConfig.ClientSecret,
 		TokenURL:       provider.Endpoint().TokenURL,
+		Scopes:         c.AuthConfig.Scopes,
 		EndpointParams: params,
 	}
 

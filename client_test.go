@@ -1,9 +1,13 @@
 package datahub
 
 import (
-	"github.com/google/uuid"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 type TestConfig struct {
@@ -104,5 +108,33 @@ func TestClientCertificateAuthenticate(t *testing.T) {
 	err = publicKeyClient.Authenticate()
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func TestClientCredentialsRequestsScopes(t *testing.T) {
+	var gotScope string
+	var auth *httptest.Server
+	auth = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			fmt.Fprintf(w, `{"issuer":%q,"token_endpoint":%q}`, auth.URL, auth.URL+"/token")
+			return
+		}
+		_ = r.ParseForm()
+		gotScope = r.PostForm.Get("scope")
+		fmt.Fprint(w, `{"access_token":"token","token_type":"bearer","expires_in":3600}`)
+	}))
+	defer auth.Close()
+
+	client, err := NewClient("http://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.WithClientKeyAndSecretAuth(auth.URL, "audience", "id", "secret", "datahub:r", "datahub:w")
+	if err := client.Authenticate(); err != nil {
+		t.Fatal(err)
+	}
+	if gotScope != "datahub:r datahub:w" {
+		t.Errorf("expected scope %q, got %q", "datahub:r datahub:w", gotScope)
 	}
 }

@@ -47,6 +47,12 @@ client.WithClientKeyAndSecretAuth("authorizer URL", "audience", "key", "secret")
 err = client.Authenticate()
 ```
 
+Some identity providers, such as Ory Hydra, only put scopes in the token when the token request asks for them. To request scopes, such as `datahub:r`, add them after the secret:
+
+```go
+client.WithClientKeyAndSecretAuth("authorizer URL", "audience", "key", "secret", "datahub:r", "datahub:w")
+```
+
 To authenticate with admin authentication configure the client in the following way:
 
 ```go
